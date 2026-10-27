@@ -1,0 +1,28 @@
+name: Build PSP EBOOT
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: pspdev/pspdev:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build
+        run: make clean || true; make
+
+      - name: Show output
+        run: ls -la EBOOT.PBP
+
+      - name: Upload EBOOT.PBP
+        uses: actions/upload-artifact@v4
+        with:
+          name: EBOOT.PBP
+          path: EBOOT.PBP
