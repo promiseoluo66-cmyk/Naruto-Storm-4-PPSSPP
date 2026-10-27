@@ -78,9 +78,11 @@ void gfx_camera(float ex, float ey, float ez, float cx, float cy, float cz)
     ScePspFVector3 eye = { ex, ey, ez };
     ScePspFVector3 ctr = { cx, cy, cz };
     ScePspFVector3 up  = { 0.0f, 1.0f, 0.0f };
+    ScePspFMatrix4 m;
+    gumLoadIdentity(&m);
+    gumLookAt(&m, &eye, &ctr, &up);
     sceGumMatrixMode(GU_VIEW);
-    sceGumLoadIdentity();
-    gumLookAt(&eye, &ctr, &up);
+    sceGumLoadMatrix(&m);
 }
 
 static unsigned shade(unsigned c, float f)
