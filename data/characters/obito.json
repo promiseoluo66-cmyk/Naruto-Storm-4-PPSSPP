@@ -1,0 +1,15 @@
+{
+  "id": "obito",
+  "name": "Obito Uchiha",
+  "version": "Masked Man / Ten-Tails Jinchuriki",
+  "stats": { "health": 1000, "chakra": 110, "speed": 1.0 },
+  "basic_combo": [ { "hits": 4, "damage": [16, 16, 20, 30], "finisher": "launch" } ],
+  "jutsu": [
+    { "id": "fire_style", "name": "Fire Style: Great Fireball", "input": "square", "damage": 100, "chakra_cost": 25, "cooldown_ms": 4000, "type": "projectile" },
+    { "id": "kamui_phase", "name": "Kamui Intangibility", "input": "square+up", "damage": 0, "chakra_cost": 30, "cooldown_ms": 8000, "type": "intangible_dodge" },
+    { "id": "kamui_strike", "name": "Kamui Warp Strike", "input": "square+down", "damage": 110, "chakra_cost": 30, "cooldown_ms": 7000, "type": "teleport_strike" }
+  ],
+  "ultimate": { "id": "truth_seeking_barrage", "name": "Truth-Seeking Ball Barrage", "damage": 470, "cinematic": true },
+  "awakening": [ { "id": "ten_tails_jinchuriki", "name": "Ten-Tails Jinchuriki", "duration_s": 40, "damage_mult": 1.5, "defense_mult": 1.4, "boss_only_phase": true } ],
+  "unlock": "story_ch3"
+}

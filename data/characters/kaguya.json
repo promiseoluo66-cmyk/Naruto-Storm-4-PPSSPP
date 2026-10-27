@@ -1,0 +1,14 @@
+{
+  "id": "kaguya",
+  "name": "Kaguya Otsutsuki",
+  "version": "Rabbit Goddess (Boss)",
+  "stats": { "health": 1800, "chakra": 200, "speed": 1.0 },
+  "basic_combo": [ { "hits": 3, "damage": [22, 22, 40], "finisher": "knockback" } ],
+  "jutsu": [
+    { "id": "dimension_shift", "name": "Dimensional Shift", "input": "ai", "damage": 90, "chakra_cost": 30, "cooldown_ms": 8000, "type": "teleport_strike" },
+    { "id": "expansive_truth_seeking", "name": "Expansive Truth-Seeking Balls", "input": "ai", "damage": 160, "chakra_cost": 40, "cooldown_ms": 10000, "type": "projectile_spread" }
+  ],
+  "ultimate": { "id": "infinite_tsukuyomi", "name": "Infinite Tsukuyomi", "damage": 400, "cinematic": true },
+  "awakening": [],
+  "unlock": "boss_only"
+}

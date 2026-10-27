@@ -1,0 +1,18 @@
+{
+  "id": "naruto",
+  "name": "Naruto Uzumaki",
+  "version": "Shippuden - Sage of Six Paths",
+  "stats": { "health": 1000, "chakra": 100, "speed": 1.0 },
+  "basic_combo": [ { "hits": 4, "damage": [18, 18, 20, 30], "finisher": "knockback" } ],
+  "jutsu": [
+    { "id": "rasengan", "name": "Rasengan", "input": "square", "damage": 120, "chakra_cost": 25, "cooldown_ms": 4000, "type": "melee_projectile" },
+    { "id": "shadow_clone_barrage", "name": "Shadow Clone Barrage", "input": "square+up", "damage": 90, "chakra_cost": 20, "cooldown_ms": 5000, "type": "multi_hit" },
+    { "id": "rasenshuriken", "name": "Rasenshuriken", "input": "square+down", "damage": 180, "chakra_cost": 45, "cooldown_ms": 9000, "type": "projectile" }
+  ],
+  "ultimate": { "id": "tailed_beast_bomb", "name": "Tailed Beast Bomb", "damage": 450, "cinematic": true },
+  "awakening": [
+    { "id": "kurama_mode", "name": "Kurama Chakra Mode", "duration_s": 30, "damage_mult": 1.25, "speed_mult": 1.15 },
+    { "id": "six_paths_sage", "name": "Six Paths Sage Mode", "duration_s": 30, "damage_mult": 1.4, "speed_mult": 1.2, "unlock": "story_ch6" }
+  ],
+  "unlock": "default"
+}

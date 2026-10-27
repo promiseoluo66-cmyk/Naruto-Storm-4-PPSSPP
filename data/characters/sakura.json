@@ -1,0 +1,15 @@
+{
+  "id": "sakura",
+  "name": "Sakura Haruno",
+  "version": "Shippuden - Strength of a Hundred Seal",
+  "stats": { "health": 850, "chakra": 100, "speed": 1.05 },
+  "basic_combo": [ { "hits": 4, "damage": [16, 16, 20, 36], "finisher": "knockback" } ],
+  "jutsu": [
+    { "id": "chakra_punch", "name": "Chakra-Enhanced Punch", "input": "square", "damage": 130, "chakra_cost": 25, "cooldown_ms": 4500, "type": "melee_heavy" },
+    { "id": "ground_smash", "name": "Ground Smash", "input": "square+up", "damage": 100, "chakra_cost": 25, "cooldown_ms": 6000, "type": "area_knockback" },
+    { "id": "palm_heal", "name": "Mystical Palm Healing", "input": "square+down", "damage": 0, "chakra_cost": 35, "cooldown_ms": 12000, "type": "heal", "heal": 120 }
+  ],
+  "ultimate": { "id": "hundred_seal_strike", "name": "Strength of a Hundred Seal Strike", "damage": 400, "cinematic": true },
+  "awakening": [],
+  "unlock": "story_ch5"
+}

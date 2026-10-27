@@ -1,0 +1,15 @@
+{
+  "id": "kakashi",
+  "name": "Kakashi Hatake",
+  "version": "Shippuden - Mangekyo",
+  "stats": { "health": 900, "chakra": 100, "speed": 1.1 },
+  "basic_combo": [ { "hits": 5, "damage": [14, 14, 16, 16, 26], "finisher": "launch" } ],
+  "jutsu": [
+    { "id": "lightning_blade", "name": "Lightning Blade", "input": "square", "damage": 130, "chakra_cost": 25, "cooldown_ms": 4000, "type": "dash_melee" },
+    { "id": "ninken", "name": "Ninken Summon", "input": "square+up", "damage": 80, "chakra_cost": 20, "cooldown_ms": 6000, "type": "summon" },
+    { "id": "kamui_warp", "name": "Kamui Warp", "input": "square+down", "damage": 70, "chakra_cost": 30, "cooldown_ms": 8000, "type": "teleport_strike" }
+  ],
+  "ultimate": { "id": "kamui_lightning_blade", "name": "Kamui Lightning Blade", "damage": 420, "cinematic": true },
+  "awakening": [ { "id": "perfect_susanoo_kakashi", "name": "Perfect Susanoo", "duration_s": 25, "damage_mult": 1.3, "defense_mult": 1.3, "unlock": "story_ch5" } ],
+  "unlock": "story_ch2"
+}

@@ -1,0 +1,25 @@
+{
+  "id": "ch1_m1",
+  "chapter": 1,
+  "order": 1,
+  "title": "Hashirama vs. Madara",
+  "player_character": "hashirama",
+  "opponent": "madara",
+  "arena": "valley_of_the_end",
+  "objective": "Defeat Madara",
+  "intro_dialogue": [
+    { "speaker": "Narrator", "text": "Two legends of the shinobi world clash once more." },
+    { "speaker": "Madara", "text": "Hashirama... I'll show you my power." },
+    { "speaker": "Hashirama", "text": "Then I'll end this here, Madara." }
+  ],
+  "boss_phases": [
+    { "hp_threshold": 1.0, "behavior": "aggressive_fireball" },
+    { "hp_threshold": 0.6, "behavior": "susanoo", "event": "activate_awakening" },
+    { "hp_threshold": 0.3, "behavior": "six_paths", "event": "cinematic_transform" }
+  ],
+  "win_condition": "opponent_hp_zero",
+  "lose_condition": "player_hp_zero",
+  "retry_allowed": true,
+  "unlocks": ["ch2_m1", "character:madara"],
+  "next": "ch2_m1"
+}

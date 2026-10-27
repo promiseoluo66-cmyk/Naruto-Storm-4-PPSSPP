@@ -1,0 +1,15 @@
+{
+  "id": "madara",
+  "name": "Madara Uchiha",
+  "version": "Edo Tensei / Six Paths",
+  "stats": { "health": 1100, "chakra": 120, "speed": 0.95 },
+  "basic_combo": [ { "hits": 4, "damage": [20, 20, 22, 35], "finisher": "knockback" } ],
+  "jutsu": [
+    { "id": "great_fireball", "name": "Fire Style: Great Fireball", "input": "square", "damage": 110, "chakra_cost": 25, "cooldown_ms": 4000, "type": "projectile" },
+    { "id": "susanoo_slash", "name": "Susanoo Slash", "input": "square+up", "damage": 140, "chakra_cost": 35, "cooldown_ms": 7000, "type": "melee_wide" },
+    { "id": "almighty_push", "name": "Almighty Push", "input": "square+down", "damage": 60, "chakra_cost": 30, "cooldown_ms": 8000, "type": "area_knockback" }
+  ],
+  "ultimate": { "id": "tengai_shinsei", "name": "Meteor Drop (Tengai Shinsei)", "damage": 500, "cinematic": true },
+  "awakening": [ { "id": "six_paths_madara", "name": "Six Paths Madara", "duration_s": 35, "damage_mult": 1.4, "speed_mult": 1.1 } ],
+  "unlock": "story_ch1"
+}

@@ -1,0 +1,15 @@
+{
+  "id": "hashirama",
+  "name": "Hashirama Senju",
+  "version": "First Hokage - Sage Mode",
+  "stats": { "health": 1150, "chakra": 130, "speed": 0.9 },
+  "basic_combo": [ { "hits": 4, "damage": [20, 20, 24, 34], "finisher": "knockback" } ],
+  "jutsu": [
+    { "id": "wood_stakes", "name": "Wood Style: Stakes", "input": "square", "damage": 90, "chakra_cost": 20, "cooldown_ms": 3500, "type": "projectile" },
+    { "id": "wood_dragon", "name": "Wood Style: Wood Dragon", "input": "square+up", "damage": 150, "chakra_cost": 35, "cooldown_ms": 7000, "type": "homing_projectile" },
+    { "id": "wood_golem", "name": "Wood Style: Wood Golem", "input": "square+down", "damage": 130, "chakra_cost": 40, "cooldown_ms": 10000, "type": "summon" }
+  ],
+  "ultimate": { "id": "great_buddha", "name": "Sage Art: Wood Style Great Buddha", "damage": 520, "cinematic": true },
+  "awakening": [ { "id": "hashirama_sage", "name": "Sage Mode", "duration_s": 35, "damage_mult": 1.35, "speed_mult": 1.1 } ],
+  "unlock": "default"
+}

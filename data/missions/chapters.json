@@ -1,0 +1,10 @@
+{
+  "chapters": [
+    { "id": 1, "title": "Hashirama vs. Madara", "status": "mission_1_defined" },
+    { "id": 2, "title": "The Fourth Great Ninja War", "status": "planned" },
+    { "id": 3, "title": "Obito and the Ten-Tails", "status": "planned" },
+    { "id": 4, "title": "Madara Uchiha", "status": "planned" },
+    { "id": 5, "title": "Kaguya Otsutsuki", "status": "planned" },
+    { "id": 6, "title": "Naruto vs. Sasuke", "status": "planned" }
+  ]
+}
