@@ -1,5 +1,5 @@
 TARGET = naruto_storm4
-OBJS = src/main.o
+OBJS = src/main.o src/gfx.o
 
 INCDIR = include
 CFLAGS = -O2 -G0 -Wall
@@ -7,7 +7,7 @@ CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
 ASFLAGS = $(CFLAGS)
 
 LIBDIR =
-LIBS = -lpspdebug -lpspdisplay -lpspge -lpspctrl -lm
+LIBS = -lpspgum -lpspgu -lpspdisplay -lpspge -lpspctrl -lm
 LDFLAGS =
 
 EXTRA_TARGETS = EBOOT.PBP
