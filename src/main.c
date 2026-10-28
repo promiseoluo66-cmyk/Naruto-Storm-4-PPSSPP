@@ -1,8 +1,8 @@
 /*
- * Naruto Storm 4 PPSSPP - Phase 4
- * Story Mode framework: data-driven missions, chapter select, typewriter dialogue,
- * boss phases from mission data, unlocks, save/load (memory stick file).
- * Plus Phase 3 combat: character jutsu, ultimates, awakening.
+ * Naruto Storm 4 PPSSPP - Phase 5
+ * 8 fighters (adds Obito, Kaguya), support characters (L+Square), 4 arenas,
+ * boss transformation cinematics, 6 story missions (Ch1-Ch6).
+ * Includes Phase 2-4: 3D combat, jutsu/ultimates/awakening, story + save.
  *
  * Models are placeholder boxes. Move/mission data is compiled in; JSON loading comes later.
  */
@@ -20,8 +20,10 @@ PSP_MODULE_INFO("NarutoStorm4", 0, 1, 0);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
 
 #define ARENA_R 9.5f
-#define MAXP 10
+#define MAXP 12
 #define AWAKEN_FRAMES 1800
+#define NUM_ARENAS 4
+#define CINE_FRAMES 75
 
 /* ---------------- exit callback ---------------- */
 static int exit_cb(int a1, int a2, void *c) { sceKernelExitGame(); return 0; }
@@ -41,7 +43,7 @@ static void setup_callbacks(void)
 /* ---------------- roster ---------------- */
 typedef enum {
     MV_DASH, MV_MULTI, MV_PROJ, MV_SPREAD, MV_HOMING, MV_BARRAGE,
-    MV_GROUND, MV_SLASH, MV_PUSH, MV_WARP, MV_HEAL, MV_DOT
+    MV_GROUND, MV_SLASH, MV_PUSH, MV_WARP, MV_HEAL, MV_DOT, MV_PHASE
 } MoveType;
 
 typedef struct {
@@ -64,7 +66,7 @@ typedef struct {
     unsigned awk_col;
 } Def;
 
-#define NUM_CHARS 6
+#define NUM_CHARS 8
 static const Def roster[NUM_CHARS] = {
     { "NARUTO", 1000, 0.135f, RGB(245,140,20), RGB(25,50,190), RGB(250,215,60), RGB(80,180,255),
       { { "RASENGAN",      MV_DASH,  25, 240, 120, 20, 0.45f, 2.0f, 0.30f, 0.5f },
@@ -100,11 +102,23 @@ static const Def roster[NUM_CHARS] = {
       { { "CHAKRA PUNCH", MV_DASH, 25, 270, 130, 22, 0.35f, 2.2f, 0.40f, 0.5f },
         { "GROUND SMASH", MV_PUSH, 25, 360, 100, 18, 0.00f, 4.0f, 0.50f, 0.0f },
         { "PALM HEAL",    MV_HEAL, 35, 720, 120,  0, 0.00f, 0.0f, 0.00f, 0.0f } },
-      "HUNDRED SEAL STRIKE", 400, 0, "NONE", RGB(255,255,255) }
+      "HUNDRED SEAL STRIKE", 400, 0, "NONE", RGB(255,255,255) },
+
+    { "OBITO", 1000, 0.140f, RGB(60,60,70), RGB(40,40,50), RGB(30,25,30), RGB(255,120,40),
+      { { "FIRE STYLE",    MV_PROJ,  25, 240, 100, 14, 0.28f, 0.0f, 0.15f, 1.0f },
+        { "KAMUI PHASE",   MV_PHASE, 30, 480,   0,  0, 0.00f, 0.0f, 0.00f, 0.0f },
+        { "KAMUI STRIKE",  MV_WARP,  30, 420, 110, 14, 0.00f, 2.5f, 0.25f, 0.0f } },
+      "TRUTH-SEEKING BARRAGE", 470, 1, "TEN-TAILS FORM", RGB(160,60,220) },
+
+    { "KAGUYA", 1800, 0.130f, RGB(245,245,250), RGB(200,190,225), RGB(250,250,255), RGB(255,255,255),
+      { { "DIMENSION SHIFT",    MV_WARP,   30, 480,  90, 14, 0.00f, 2.5f, 0.25f, 0.0f },
+        { "TRUTH-SEEKING BALLS", MV_SPREAD, 40, 420, 160, 18, 0.26f, 0.0f, 0.20f, 0.6f },
+        { "EXPANSIVE PUSH",     MV_PUSH,   35, 540,  70, 16, 0.00f, 6.5f, 0.70f, 0.0f } },
+      "INFINITE TSUKUYOMI", 400, 0, "NONE", RGB(255,255,255) }
 };
 
 static const char *unlock_hint[NUM_CHARS] = {
-    "", "", "", "CLEAR STORY CH1", "CLEAR STORY CH2", ""
+    "", "", "", "CLEAR STORY CH1", "CLEAR STORY CH2", "", "CLEAR STORY CH3", "CLEAR STORY CH5"
 };
 
 /* ---------------- story data ---------------- */
@@ -120,10 +134,13 @@ typedef struct {
     int post_n;
     Line post[3];
     int unlock_char;
+    int psup[2], esup[2];
 } Mission;
 
-#define NUM_MISSIONS 3
+/* NOTE: indices are stored in save files. Only ever append new missions. */
+#define NUM_MISSIONS 6
 static const Mission missions[NUM_MISSIONS] = {
+    /* 0: Chapter 1 */
     { "HASHIRAMA VS MADARA", "DEFEAT MADARA", 1, 2, 3, 1, -1, 1.0f,
       { { 0.6f, 1.25f, 1.1f, "MADARA: SUSANOO!", 1 }, { 0.3f, 1.5f, 1.2f, "MADARA: SIX PATHS POWER!", 2 } },
       5, { { "NARRATOR",  "Two legends of the shinobi world clash once more at the Valley of the End." },
@@ -133,19 +150,21 @@ static const Mission missions[NUM_MISSIONS] = {
            { "HASHIRAMA", "Get ready. This battle decides everything." } },
       2, { { "HASHIRAMA", "Madara... you were always my greatest rival." },
            { "NARRATOR",  "The legendary duel ends. But the world is about to be swept into war." } },
-      3 },
+      3, { -1, -1 }, { -1, -1 } },
 
+    /* 1: Chapter 2 */
     { "THE FOURTH GREAT NINJA WAR", "HOLD THE LINE", 2, 4, 3, 0, 0, 1.3f,
       { { 0.5f, 1.3f, 1.1f, "MADARA: SUSANOO!", 1 }, { 0.0f, 1.0f, 1.0f, "", 0 } },
       4, { { "NARRATOR", "The Fourth Great Ninja War begins. The Allied Shinobi Forces rise against an unstoppable enemy." },
            { "KAKASHI",  "Hold the line, everyone! We cannot let him reach the others." },
            { "MADARA",   "Your alliance is a fragile thing. Let me show you how fragile." },
-           { "KAKASHI",  "Then we will prove you wrong." } },
+           { "KAKASHI",  "Then we will prove you wrong. Sakura, Naruto, stand with me!" } },
       2, { { "KAKASHI",  "He is down... but this war is far from over." },
            { "NARRATOR", "The Allied Forces gain precious time. The greatest battles are still to come." } },
-      4 },
+      4, { 5, 0 }, { -1, -1 } },
 
-    { "NARUTO VS SASUKE", "SETTLE THE RIVALRY", 6, 0, 1, 2, 1, 1.4f,
+    /* 2: Chapter 6 (kept at index 2 for save compatibility) */
+    { "NARUTO VS SASUKE", "SETTLE THE RIVALRY", 6, 0, 1, 2, 4, 1.4f,
       { { 0.66f, 1.2f, 1.1f, "SASUKE: SUSANOO!", 1 }, { 0.33f, 1.4f, 1.2f, "SASUKE: RINNEGAN POWER!", 2 } },
       3, { { "NARRATOR", "At the Valley of the End, two rivals face each other one last time." },
            { "SASUKE",   "Naruto... this ends today. Show me everything you have." },
@@ -153,16 +172,46 @@ static const Mission missions[NUM_MISSIONS] = {
       3, { { "SASUKE",   "...I lost. You really did get stronger, Naruto." },
            { "NARUTO",   "We both did. That's what rivals are for." },
            { "NARRATOR", "The rivalry is settled, and their bond endures." } },
-      -1 }
+      -1, { -1, -1 }, { -1, -1 } },
+
+    /* 3: Chapter 3 */
+    { "OBITO AND THE TEN-TAILS", "DEFEAT OBITO", 3, 0, 6, 1, 1, 1.5f,
+      { { 0.6f, 1.3f, 1.1f, "OBITO: TEN-TAILS POWER!", 1 }, { 0.3f, 1.5f, 1.2f, "OBITO: JINCHURIKI FORM!", 2 } },
+      3, { { "NARRATOR", "On the battlefield, the masked man reveals himself, wielding the power of the Ten-Tails." },
+           { "OBITO",    "A world of dreams is the only peace that is real." },
+           { "NARUTO",   "I won't let you take everyone's future! Sasuke, Kakashi-sensei, stay with me!" } },
+      2, { { "OBITO",    "...I wanted to believe in that world. Perhaps I was wrong." },
+           { "NARRATOR", "The Ten-Tails' host falls, but the shadow of the moon is growing." } },
+      6, { 1, 4 }, { -1, -1 } },
+
+    /* 4: Chapter 4 */
+    { "MADARA UCHIHA", "DEFEAT MADARA", 4, 1, 3, 1, 3, 1.5f,
+      { { 0.6f, 1.25f, 1.1f, "MADARA: SUSANOO!", 1 }, { 0.3f, 1.5f, 1.2f, "MADARA: SIX PATHS POWER!", 2 } },
+      3, { { "NARRATOR", "Madara, revived with the power of the Ten-Tails, stands above the battlefield." },
+           { "MADARA",   "I am the one who will bring this world to its knees." },
+           { "SASUKE",   "Naruto, cover me. I'll handle him." } },
+      2, { { "SASUKE",   "He's gone... but something far worse is awakening." },
+           { "NARRATOR", "The Rabbit Goddess is about to return." } },
+      -1, { 0, 5 }, { -1, -1 } },
+
+    /* 5: Chapter 5 */
+    { "KAGUYA OTSUTSUKI", "DEFEAT KAGUYA", 5, 0, 7, 3, 4, 1.2f,
+      { { 0.66f, 1.2f, 1.1f, "KAGUYA: DIMENSION SHIFT!", 1 }, { 0.33f, 1.4f, 1.2f, "KAGUYA: TRUTH-SEEKING FURY!", 2 } },
+      3, { { "NARRATOR", "Kaguya Otsutsuki, the mother of chakra, descends. Team 7 stands together once more." },
+           { "KAGUYA",   "All of you will return to me. Sleep." },
+           { "NARUTO",   "Not a chance! Team 7, let's do this together!" } },
+      2, { { "NARUTO",   "We did it... but the real fight is still ahead." },
+           { "NARRATOR", "With Kaguya sealed, only one battle remains." } },
+      7, { 1, 5 }, { -1, -1 } }
 };
 
-/* chapter list shown in the story menu; -1 = not built yet */
+/* chapter list shown in the story menu, in story order */
 #define NUM_ROWS 6
 static const char *row_title[NUM_ROWS] = {
     "1 HASHIRAMA VS MADARA", "2 FOURTH GREAT NINJA WAR", "3 OBITO AND THE TEN-TAILS",
     "4 MADARA UCHIHA", "5 KAGUYA OTSUTSUKI", "6 NARUTO VS SASUKE"
 };
-static const int row_mission[NUM_ROWS] = { 0, 1, -1, -1, -1, 2 };
+static const int row_mission[NUM_ROWS] = { 0, 1, 3, 4, 5, 2 };
 
 /* ---------------- save data ---------------- */
 typedef struct { unsigned magic, version, completed, crc; } SaveData;
@@ -226,18 +275,19 @@ typedef enum { FS_IDLE, FS_ATTACK, FS_JUTSU, FS_CHARGE, FS_DASH, FS_ULT, FS_AWAK
 typedef struct {
     int def, is_ai;
     float x, y, z, vy, fx, fz;
-    float hp, maxhp, chakra, dmg_mult, spd_mult, awm;
+    float hp, maxhp, chakra, dmg_mult, spd_mult, awm, supm;
     FState state;
     int timer, combo, combo_win, queued, stun, inv, guarding, dead, hit_flash, phase_lvl;
     int move, hitdone, frozen, burn, awk;
     int jcd[3];
+    int sup[2], sup_idx, sup_t, sup_def;
     float kbx, kbz, dashx, dashz, phase, burn_dps, mark_x, mark_z;
     int ai_cd, ai_mode, ai_mode_t, ai_guard, ai_charge;
 } Fighter;
 
 typedef struct {
     float ax, ay;
-    int atk, jutsu, charge, guard, jump, dash, ult, awaken;
+    int atk, jutsu, charge, guard, jump, dash, ult, awaken, support;
 } Input;
 
 typedef struct {
@@ -257,20 +307,22 @@ typedef enum {
 static GameState gstate = GS_MENU;
 static int menu_sel = 0, select_idx = 0, select_mode = 0, story_mode = 0;
 static int cur_mission = 0, cur_arena = 0, story_row = 0, reset_confirm = 0;
-static int dlg_idx = 0, dlg_chars = 0, dlg_post = 0;
+static int dlg_idx = 0, dlg_chars = 0, dlg_post = 0, cine_timer = 0;
 static int intro = 0, ko_timer = 0, paused = 0, player_won = 0, result_sel = 0, save_ok = 0;
 static unsigned frame = 0;
 static char msg[48] = "";
 static int msg_t = 0;
-static char note[48] = "";
+static char note[56] = "";
 static int note_t = 0;
 static float camx, camy, camz, tgx, tgy, tgz;
 static float menu_angle = 0.0f;
 
-static const unsigned arena_sky[3] = { RGB(110, 170, 235), RGB(200, 120, 80), RGB(70, 50, 90) };
+static const unsigned arena_sky[NUM_ARENAS] = {
+    RGB(110, 170, 235), RGB(200, 120, 80), RGB(70, 50, 90), RGB(30, 10, 50)
+};
 
 static void set_msg(const char *s) { strncpy(msg, s, 47); msg[47] = 0; msg_t = 120; }
-static void set_note(const char *s) { strncpy(note, s, 47); note[47] = 0; note_t = 150; }
+static void set_note(const char *s) { strncpy(note, s, 55); note[55] = 0; note_t = 150; }
 
 static float dist_xz(float ax, float az, float bx, float bz)
 {
@@ -286,6 +338,8 @@ static void make_fighter(Fighter *f, int def, float x, float z, int is_ai)
     f->x = x; f->z = z;
     f->maxhp = f->hp = (float)roster[def].hp;
     f->chakra = 50.0f;
+    f->supm = 50.0f;
+    f->sup[0] = f->sup[1] = -1;
     f->dmg_mult = 1.0f; f->spd_mult = 1.0f;
     f->fx = (x < 0) ? 1.0f : -1.0f;
     f->state = FS_IDLE;
@@ -327,8 +381,8 @@ static void melee_hit(Fighter *f, Fighter *o)
     }
 }
 
-static void spawn_proj(Fighter *f, Fighter *o, const Move *m, float ang, float side, float fwd,
-                       int homing, float dmg, float size, int dot)
+static Proj *spawn_proj(Fighter *f, Fighter *o, const Move *m, float ang, float side, float fwd,
+                        int homing, float dmg, float size, int dot)
 {
     int i;
     float ca = cosf(ang), sa = sinf(ang), rx = -f->fz, rz = f->fx;
@@ -346,8 +400,22 @@ static void spawn_proj(Fighter *f, Fighter *o, const Move *m, float ang, float s
             p->dotdmg = dot ? (float)m->dmg * 0.85f : 0.0f;
             p->col = dot ? RGB(60, 10, 90) : roster[f->def].orb;
             p->src = f; p->tgt = o;
-            return;
+            return p;
         }
+    }
+    return NULL;
+}
+
+/* support partner strike: homing projectile launched from the partner's position */
+static void assist_strike(Fighter *f, Fighter *o)
+{
+    static const Move am = { "ASSIST", MV_HOMING, 0, 0, 85, 16, 0.35f, 0.0f, 0.2f, 0.7f };
+    Proj *p = spawn_proj(f, o, &am, 0.0f, 0.0f, 0.0f, 1, 85.0f, 0.7f, 0);
+    if (p) {
+        float rx = -f->fz, rz = f->fx;
+        p->x = f->x + rx * 2.2f + f->fx * 0.5f;
+        p->z = f->z + rz * 2.2f + f->fz * 0.5f;
+        p->col = roster[f->sup_def].orb;
     }
 }
 
@@ -426,6 +494,10 @@ static void jutsu_tick(Fighter *f, Fighter *o, const Move *m)
         if (t == 30) { f->hp = fminf(f->maxhp, f->hp + (float)m->dmg); }
         if (t >= 40) f->state = FS_IDLE;
         break;
+    case MV_PHASE:
+        if (t == 1) f->inv = 44;
+        if (t >= 44) f->state = FS_IDLE;
+        break;
     }
 }
 
@@ -441,7 +513,7 @@ static void start_jutsu(Fighter *f, int idx)
     f->timer = 0;
 }
 
-/* ultimate / awakening; returns 1 if the state changed */
+/* ultimate / awakening / support; returns 1 if the state changed */
 static int try_special(Fighter *f, const Input *in)
 {
     const Def *d = &roster[f->def];
@@ -454,6 +526,16 @@ static int try_special(Fighter *f, const Input *in)
         f->state = FS_AWAKEN; f->timer = 0; f->inv = 40;
         set_msg(d->awk_name);
         return 1;
+    }
+    if (in->support && f->supm >= 100.0f && f->sup_t == 0) {
+        int s = f->sup[f->sup_idx];
+        if (s < 0) { f->sup_idx ^= 1; s = f->sup[f->sup_idx]; }
+        if (s >= 0) {
+            char b[48];
+            f->sup_def = s; f->sup_t = 1; f->supm = 0.0f; f->sup_idx ^= 1;
+            sprintf(b, "SUPPORT: %s", roster[s].name);
+            set_msg(b);
+        }
     }
     return 0;
 }
@@ -481,7 +563,13 @@ static void fighter_update(Fighter *f, Fighter *o, const Input *in)
         if (f->hit_flash > 0) f->hit_flash--;
         if (f->combo_win > 0 && --f->combo_win == 0) f->combo = 0;
         f->chakra = fminf(100.0f, f->chakra + (f->awk > 0 ? 0.3f : 0.05f));
+        f->supm = fminf(100.0f, f->supm + 0.06f);
         if (f->awk > 0) f->awk--; else f->awm = fminf(100.0f, f->awm + 0.01f);
+        if (f->sup_t > 0) {
+            f->sup_t++;
+            if (f->sup_t == 20) assist_strike(f, o);
+            if (f->sup_t > 50) f->sup_t = 0;
+        }
 
         if (f->stun > 0) {
             f->stun--;
@@ -564,7 +652,7 @@ static void fighter_update(Fighter *f, Fighter *o, const Input *in)
 }
 
 /* ---------------- AI ---------------- */
-static int ai_move_ok(const Move *m, float dist, float hpr)
+static int ai_move_ok(const Move *m, float dist, float hpr, const Fighter *o)
 {
     switch (m->type) {
     case MV_DASH:    return dist > 2.5f && dist < 8.0f;
@@ -576,6 +664,7 @@ static int ai_move_ok(const Move *m, float dist, float hpr)
     case MV_PUSH:    return dist < m->range - 0.8f;
     case MV_WARP:    return dist > 3.0f && dist < 10.0f;
     case MV_HEAL:    return hpr < 0.55f;
+    case MV_PHASE:   return dist < 4.5f && (o->state == FS_ATTACK || o->state == FS_JUTSU);
     }
     return 0;
 }
@@ -601,11 +690,12 @@ static void ai_think(Fighter *f, Fighter *o, Input *in)
     if (f->state == FS_IDLE && rand() % 100 < 5) {
         int k = rand() % 3;
         const Move *m = &d->jut[k];
-        if (f->chakra >= (float)m->cost && f->jcd[k] == 0 && ai_move_ok(m, dist, f->hp / f->maxhp))
+        if (f->chakra >= (float)m->cost && f->jcd[k] == 0 && ai_move_ok(m, dist, f->hp / f->maxhp, o))
             in->jutsu = k + 1;
     }
     if (f->chakra >= 100.0f && dist < 12.0f && rand() % 100 < 6) in->ult = 1;
     if (f->awm >= 100.0f && d->has_awk && f->awk == 0 && rand() % 100 < 10) in->awaken = 1;
+    if (f->supm >= 100.0f && (f->sup[0] >= 0 || f->sup[1] >= 0) && dist > 3.0f && rand() % 100 < 3) in->support = 1;
     if (f->chakra < 30.0f && dist > 5.0f && rand() % 100 < 8) f->ai_charge = 40;
 }
 
@@ -624,9 +714,12 @@ static Input read_input(const SceCtrlData *p, unsigned pressed)
     if (p->Buttons & PSP_CTRL_DOWN)  in.ay = -1.0f;
     in.atk = !!(pressed & PSP_CTRL_CIRCLE);
     if (pressed & PSP_CTRL_SQUARE) {
-        in.jutsu = 1;
-        if (p->Buttons & PSP_CTRL_UP) in.jutsu = 2;
-        else if (p->Buttons & PSP_CTRL_DOWN) in.jutsu = 3;
+        if (p->Buttons & PSP_CTRL_LTRIGGER) in.support = 1;
+        else {
+            in.jutsu = 1;
+            if (p->Buttons & PSP_CTRL_UP) in.jutsu = 2;
+            else if (p->Buttons & PSP_CTRL_DOWN) in.jutsu = 3;
+        }
     }
     in.jump = !!(pressed & PSP_CTRL_CROSS);
     in.dash = !!(pressed & PSP_CTRL_RTRIGGER);
@@ -663,6 +756,11 @@ static void camera_update(int snap)
             ex = o->x - c->fx * 2.0f + rx * 4.0f; ey = 2.2f; ez = o->z - c->fz * 2.0f + rz * 4.0f;
             cx = o->x; cy = 1.3f; cz = o->z;
         }
+    } else if (cine_timer > 0) {
+        float rx = -en.fz, rz = en.fx;
+        k = 0.2f;
+        ex = en.x + en.fx * 4.0f + rx * 2.5f; ey = 2.2f; ez = en.z + en.fz * 4.0f + rz * 2.5f;
+        cx = en.x; cy = 1.9f; cz = en.z;
     } else {
         float dx = en.x - pl.x, dz = en.z - pl.z, dist = sqrtf(dx * dx + dz * dz), fx, fz, back;
         if (dist < 0.01f) dist = 0.01f;
@@ -676,14 +774,20 @@ static void camera_update(int snap)
 }
 
 /* ---------------- battle control ---------------- */
-static void battle_start(int pdef, int edef, int story, int arena, float boss_hp)
+static void battle_start(int pdef, int edef, int story, int arena, float boss_hp,
+                         const int *psup, const int *esup)
 {
+    int ps[2], es[2];
+    ps[0] = psup ? psup[0] : -1; ps[1] = psup ? psup[1] : -1;
+    es[0] = esup ? esup[0] : -1; es[1] = esup ? esup[1] : -1;
     memset(projs, 0, sizeof(projs));
     make_fighter(&pl, pdef, -4.0f, 0.0f, 0);
     make_fighter(&en, edef, 4.0f, 0.0f, 1);
+    pl.sup[0] = ps[0]; pl.sup[1] = ps[1];
+    en.sup[0] = es[0]; en.sup[1] = es[1];
     en.maxhp *= boss_hp; en.hp = en.maxhp;
     story_mode = story; cur_arena = arena;
-    intro = 0; ko_timer = 0; paused = 0; msg_t = 0;
+    intro = 0; ko_timer = 0; paused = 0; msg_t = 0; cine_timer = 0;
     srand(frame * 2654435761u + 7u);
     camera_update(1);
     gstate = GS_BATTLE;
@@ -692,7 +796,7 @@ static void battle_start(int pdef, int edef, int story, int arena, float boss_hp
 static void start_mission_battle(void)
 {
     const Mission *m = &missions[cur_mission];
-    battle_start(m->pdef, m->edef, 1, m->arena, m->boss_hp);
+    battle_start(m->pdef, m->edef, 1, m->arena, m->boss_hp, m->psup, m->esup);
 }
 
 static void start_mission_dialogue(int mi)
@@ -710,6 +814,28 @@ static void finish_mission(void)
     gstate = GS_COMPLETE;
 }
 
+/* random unlocked character that is neither a nor b; -1 if none found */
+static int pick_support(int a, int b)
+{
+    unsigned um = chars_unlocked();
+    int tries, s;
+    for (tries = 0; tries < 40; tries++) {
+        s = rand() % NUM_CHARS;
+        if (s != a && s != b && ((um >> s) & 1u)) return s;
+    }
+    return -1;
+}
+
+static void start_free_battle(int pdef)
+{
+    int e, ps[2], es[2];
+    srand(frame);
+    do { e = rand() % NUM_CHARS; } while (e == pdef);
+    ps[0] = pick_support(pdef, e); ps[1] = -1;
+    es[0] = pick_support(pdef, e); es[1] = -1;
+    battle_start(pdef, e, 0, rand() % NUM_ARENAS, 1.0f, ps, es);
+}
+
 static void battle_update(const SceCtrlData *pad, unsigned pressed)
 {
     Input pin, ein;
@@ -724,6 +850,7 @@ static void battle_update(const SceCtrlData *pad, unsigned pressed)
     if (msg_t > 0) msg_t--;
     intro++;
     if (intro < 90) { camera_update(0); return; }
+    if (cine_timer > 0) { cine_timer--; camera_update(0); return; }
 
     pin = read_input(pad, pressed);
     ai_think(&en, &pl, &ein);
@@ -768,7 +895,7 @@ static void battle_update(const SceCtrlData *pad, unsigned pressed)
         }
     }
 
-    /* boss phases come from the mission data */
+    /* boss phases come from the mission data; each triggers a short cinematic */
     if (story_mode && !en.dead) {
         const Mission *m = &missions[cur_mission];
         float ratio = en.hp / en.maxhp;
@@ -778,6 +905,8 @@ static void battle_update(const SceCtrlData *pad, unsigned pressed)
                 en.phase_lvl = ph->vis; en.dmg_mult = ph->dmg; en.spd_mult = ph->spd;
                 en.awm = 100.0f;
                 set_msg(ph->msg);
+                cine_timer = CINE_FRAMES;
+                msg_t = CINE_FRAMES + 45;
             }
         }
     }
@@ -821,7 +950,7 @@ static void draw_fighter(const Fighter *f)
         part(f, 0.0f, 0.3f, 1.2f, 0.45f, 0.45f, 0.45f, skin);
         return;
     }
-    if (f->phase_lvl >= 1) part(f, 0.0f, 1.9f, -0.7f, 2.4f, 3.6f, 0.3f, RGB(90, 110, 255));
+    if (f->phase_lvl >= 1) part(f, 0.0f, 1.9f, -0.7f, 2.4f, 3.6f, 0.3f, f->def == 6 ? RGB(160, 60, 220) : RGB(90, 110, 255));
     if (f->phase_lvl >= 2) part(f, 0.0f, 4.0f, -0.7f, 1.4f, 0.3f, 0.3f, RGB(255, 255, 255));
 
     if (f->awk > 0) {
@@ -832,6 +961,7 @@ static void draw_fighter(const Fighter *f)
         if (f->def == 1) part(f, 0.0f, 1.9f, -0.7f, 2.4f, 3.6f, 0.3f, d->awk_col);
         if (f->def == 3) part(f, 0.0f, 3.4f, -0.5f, 1.6f, 0.3f, 0.3f, d->awk_col);
         if (f->def == 2) part(f, 0.0f, 1.95f, 0.24f, 0.5f, 0.1f, 0.05f, d->awk_col);
+        if (f->def == 6) part(f, 0.0f, 3.2f, -0.6f, 2.0f, 0.4f, 0.4f, d->awk_col);
     }
     if (f->burn > 0) {
         for (i = 0; i < 3; i++)
@@ -844,6 +974,10 @@ static void draw_fighter(const Fighter *f)
     part(f, 0.0f, 1.3f, 0.0f, 0.8f, 0.8f, 0.4f, body);
     part(f, 0.0f, 1.95f, 0.0f, 0.45f, 0.45f, 0.45f, skin);
     part(f, 0.0f, 2.22f, 0.0f, 0.5f, 0.15f, 0.5f, hair);
+    if (f->def == 7) { /* Kaguya horns */
+        part(f, -0.18f, 2.45f, 0.0f, 0.1f, 0.3f, 0.1f, RGB(255, 255, 255));
+        part(f,  0.18f, 2.45f, 0.0f, 0.1f, 0.3f, 0.1f, RGB(255, 255, 255));
+    }
 
     if ((f->state == FS_ATTACK && f->timer >= 3 && f->timer <= 9) ||
         (mv && (mv->type == MV_DASH || mv->type == MV_SLASH) && f->timer >= 4 && f->timer <= 16)) {
@@ -886,7 +1020,7 @@ static void draw_fighter(const Fighter *f)
             if (t >= 6 && t <= 30) {
                 Fighter c = *f;
                 c.x += (-f->fz) * 1.4f; c.z += f->fx * 1.4f;
-                c.state = FS_ATTACK; c.timer = 5; c.hit_flash = 0; c.awk = 0; c.burn = 0;
+                c.state = FS_ATTACK; c.timer = 5; c.hit_flash = 0; c.awk = 0; c.burn = 0; c.sup_t = 0;
                 draw_fighter(&c);
                 c.x = f->x - (-f->fz) * 1.4f; c.z = f->z - f->fx * 1.4f;
                 draw_fighter(&c);
@@ -894,6 +1028,9 @@ static void draw_fighter(const Fighter *f)
             break;
         case MV_WARP:
             if (t >= 3 && t <= 8) part(f, 0.0f, 1.5f, 0.0f, 1.4f, 2.4f, 1.4f, RGB(160, 80, 220));
+            break;
+        case MV_PHASE:
+            if ((t / 3) & 1) part(f, 0.0f, 1.4f, 0.0f, 1.4f, 2.8f, 1.4f, RGB(150, 60, 220));
             break;
         default:
             if (t < 14) {
@@ -915,6 +1052,21 @@ static void draw_fighter(const Fighter *f)
     }
 }
 
+/* support partner ghost, drawn next to the caller while the assist plays */
+static void draw_support(const Fighter *f)
+{
+    Fighter g;
+    if (f->sup_t <= 0 || f->dead) return;
+    memset(&g, 0, sizeof(g));
+    g.def = f->sup_def;
+    g.x = f->x + (-f->fz) * 2.2f + f->fx * 0.5f;
+    g.z = f->z + f->fx * 2.2f + f->fz * 0.5f;
+    g.fx = f->fx; g.fz = f->fz;
+    g.state = (f->sup_t >= 12 && f->sup_t <= 26) ? FS_ATTACK : FS_IDLE;
+    g.timer = 5;
+    draw_fighter(&g);
+}
+
 /* big visuals for each Ultimate Jutsu */
 static void draw_ult_fx(const Fighter *c, const Fighter *o)
 {
@@ -934,6 +1086,7 @@ static void draw_ult_fx(const Fighter *c, const Fighter *o)
         break;
     case 1:
     case 4:
+    case 6:
         if (t >= 30 && t < 60) part(c, 0.0f, 1.6f, 0.9f, 0.25f + (t - 30) * 0.02f, 0.25f, 0.8f + (t - 30) * 0.05f, d->orb);
         if (t >= 60 && t < 72) gfx_box_rot(c->x + (o->x - c->x) * 0.5f, 1.4f, c->z + (o->z - c->z) * 0.5f,
                                            0.5f, 0.5f, dist, atan2f(c->fx, c->fz), d->orb);
@@ -947,6 +1100,7 @@ static void draw_ult_fx(const Fighter *c, const Fighter *o)
         }
         break;
     case 3:
+    case 7:
         if (t < 20) part(c, 0.0f, 3.0f, 0.5f, 0.8f, 0.8f, 0.8f, d->orb);
         else if (t < 62) {
             float y = 18.0f - (t - 20) * 0.4f; if (y < 1.8f) y = 1.8f;
@@ -967,16 +1121,17 @@ static void draw_ult_fx(const Fighter *c, const Fighter *o)
 static void draw_arena(int style)
 {
     int i, j;
-    static const unsigned ca[3] = { RGB(95, 120, 95), RGB(150, 130, 100), RGB(120, 120, 130) };
-    static const unsigned cb[3] = { RGB(80, 102, 80), RGB(125, 108, 84), RGB(95, 95, 108) };
-    static const unsigned cp[3] = { RGB(120, 120, 130), RGB(110, 100, 90), RGB(70, 70, 85) };
-    if (style < 0 || style > 2) style = 0;
+    static const unsigned ca[NUM_ARENAS] = { RGB(95, 120, 95), RGB(150, 130, 100), RGB(120, 120, 130), RGB(80, 55, 115) };
+    static const unsigned cb[NUM_ARENAS] = { RGB(80, 102, 80), RGB(125, 108, 84), RGB(95, 95, 108), RGB(55, 38, 85) };
+    static const unsigned cp[NUM_ARENAS] = { RGB(120, 120, 130), RGB(110, 100, 90), RGB(70, 70, 85), RGB(210, 210, 235) };
+    if (style < 0 || style >= NUM_ARENAS) style = 0;
     gfx_box(0, -0.2f, 0, 26.0f, 0.4f, 26.0f, RGB(50, 50, 55));
     for (i = -3; i <= 3; i++)
         for (j = -3; j <= 3; j++)
             gfx_box(i * 3.2f, 0.01f, j * 3.2f, 3.1f, 0.02f, 3.1f, ((i + j) & 1) ? ca[style] : cb[style]);
     for (i = 0; i < 16; i++) {
         float ang = i * 0.3927f, h = 2.0f + (i % 3) * 1.2f;
+        if (style == 3) h += 2.5f * (float)(i & 1);
         gfx_box(cosf(ang) * 11.8f, h * 0.5f, sinf(ang) * 11.8f, 0.9f, h, 0.9f, cp[style]);
     }
 }
@@ -1010,13 +1165,15 @@ static void draw_hud(void)
     draw_bar(10, 38, 130, 6, pl.chakra / 100.0f, RGB(70, 150, 255), 0);
     draw_bar(10, 48, 100, 4, pl.awk > 0 ? (float)pl.awk / AWAKEN_FRAMES : pl.awm / 100.0f,
              pl.awk > 0 ? pd->awk_col : RGB(255, 200, 40), 0);
+    if (pl.sup[0] >= 0 || pl.sup[1] >= 0) draw_bar(10, 56, 70, 3, pl.supm / 100.0f, RGB(120, 255, 150), 0);
     gfx_text(470 - gfx_text_width(en_name, 2), 6, 2, RGB(255, 255, 255), en_name);
     draw_bar(280, 24, 190, 10, en.hp / en.maxhp, hp_color(en.hp / en.maxhp), 1);
     draw_bar(340, 38, 130, 6, en.chakra / 100.0f, RGB(70, 150, 255), 1);
     draw_bar(370, 48, 100, 4, en.awk > 0 ? (float)en.awk / AWAKEN_FRAMES : en.awm / 100.0f,
              en.awk > 0 ? roster[en.def].awk_col : RGB(255, 200, 40), 1);
-    if (pl.combo > 1) { sprintf(buf, "%d HIT", pl.combo); gfx_text(10, 62, 2, RGB(255, 220, 60), buf); }
-    if (msg_t > 0) gfx_text(240 - gfx_text_width(msg, 2) / 2, 80, 2, RGB(255, 200, 60), msg);
+    if (en.sup[0] >= 0 || en.sup[1] >= 0) draw_bar(400, 56, 70, 3, en.supm / 100.0f, RGB(120, 255, 150), 1);
+    if (pl.combo > 1) { sprintf(buf, "%d HIT", pl.combo); gfx_text(10, 70, 2, RGB(255, 220, 60), buf); }
+    if (msg_t > 0 && cine_timer == 0) gfx_text(240 - gfx_text_width(msg, 2) / 2, 80, 2, RGB(255, 200, 60), msg);
     if (intro < 60) {
         gfx_text(240 - gfx_text_width("READY", 4) / 2, 110, 4, RGB(255, 255, 255), "READY");
         if (story_mode) {
@@ -1037,13 +1194,17 @@ static void draw_hud(void)
         gfx_text(x, 234, 1, ready ? RGB(255, 255, 255) : RGB(120, 120, 120), buf);
         x += gfx_text_width(buf, 1) + 10;
     }
+    if (pl.supm >= 100.0f && (pl.sup[0] >= 0 || pl.sup[1] >= 0))
+        gfx_text(10, 222, 1, RGB(120, 255, 150), "SUPPORT READY: L + SQUARE");
     if (pl.chakra >= 100.0f) gfx_text(10, 246, 1, RGB(255, 220, 60), "ULTIMATE READY: HOLD TRIANGLE + CIRCLE");
     else if (pl.awm >= 100.0f && pd->has_awk && pl.awk == 0) gfx_text(10, 246, 1, RGB(255, 200, 40), "AWAKENING READY: L + R + TRIANGLE");
     gfx_text(10, 262, 1, RGB(200, 200, 200), "O:ATK  X:JUMP  L:GUARD  R:DODGE  TRI:CHARGE  START:PAUSE");
 
-    if (c) {
+    if (c || cine_timer > 0) {
         gfx_rect(0, 0, 480, 26, RGB(0, 0, 0));
         gfx_rect(0, 246, 480, 26, RGB(0, 0, 0));
+    }
+    if (c) {
         if (c->timer < 58) {
             const char *n = roster[c->def].ult_name;
             gfx_text(240 - gfx_text_width(n, 2) / 2, 8, 2, RGB(255, 220, 60), n);
@@ -1054,6 +1215,8 @@ static void draw_hud(void)
             gfx_rect(0, 0, 480, 272, RGBA(255, 255, 255, a));
         }
     }
+    if (cine_timer > 0)
+        gfx_text(240 - gfx_text_width(msg, 3) / 2, 100, 3, RGB(255, 80, 60), msg);
     if (paused) {
         gfx_rect(100, 90, 280, 80, RGBA(0, 0, 0, 220));
         gfx_text(240 - gfx_text_width("PAUSED", 3) / 2, 100, 3, RGB(255, 255, 255), "PAUSED");
@@ -1070,6 +1233,8 @@ static void draw_battle(void)
     draw_arena(cur_arena);
     draw_fighter(&pl);
     draw_fighter(&en);
+    draw_support(&pl);
+    draw_support(&en);
     if (c) draw_ult_fx(c, (c == &pl) ? &en : &pl);
     for (i = 0; i < MAXP; i++)
         if (projs[i].active) {
@@ -1135,12 +1300,8 @@ int main(void)
             if (pressed & PSP_CTRL_RIGHT) select_idx = (select_idx + 1) % NUM_CHARS;
             if (pressed & PSP_CTRL_CIRCLE) gstate = GS_MENU;
             if ((pressed & PSP_CTRL_CROSS) && !select_mode) {
-                if ((chars_unlocked() >> select_idx) & 1u) {
-                    int e;
-                    srand(frame);
-                    do { e = rand() % NUM_CHARS; } while (e == select_idx);
-                    battle_start(select_idx, e, 0, rand() % 3, 1.0f);
-                } else set_note("CHARACTER LOCKED - SEE STORY MODE");
+                if ((chars_unlocked() >> select_idx) & 1u) start_free_battle(select_idx);
+                else set_note("CHARACTER LOCKED - SEE STORY MODE");
             }
             break;
         case GS_STORY:
@@ -1186,7 +1347,7 @@ int main(void)
             if (pressed & PSP_CTRL_CROSS) {
                 if (result_sel == 0) {
                     if (story_mode) start_mission_battle();
-                    else battle_start(pl.def, en.def, 0, cur_arena, 1.0f);
+                    else battle_start(pl.def, en.def, 0, cur_arena, 1.0f, pl.sup, en.sup);
                 } else if (story_mode && result_sel == 1) gstate = GS_STORY;
                 else gstate = GS_MENU;
             }
@@ -1273,9 +1434,14 @@ int main(void)
                 gfx_text(14, 200, 1, RGB(120, 200, 255), buf);
                 sprintf(buf, "OBJECTIVE: %s", m->objective);
                 gfx_text(14, 212, 1, RGB(255, 220, 60), buf);
+                if (m->psup[0] >= 0) {
+                    sprintf(buf, "SUPPORT: %s%s%s", roster[m->psup[0]].name, m->psup[1] >= 0 ? " + " : "",
+                            m->psup[1] >= 0 ? roster[m->psup[1]].name : "");
+                    gfx_text(14, 224, 1, RGB(120, 255, 150), buf);
+                }
                 if (m->unlock_char >= 0) {
                     sprintf(buf, "REWARD: UNLOCKS %s", roster[m->unlock_char].name);
-                    gfx_text(14, 224, 1, RGB(110, 220, 120), buf);
+                    gfx_text(240, 224, 1, RGB(110, 220, 120), buf);
                 }
             }
             if (note_t > 0) gfx_text(14, 240, 1, RGB(255, 120, 120), note);
@@ -1296,7 +1462,6 @@ int main(void)
             memset(&a, 0, sizeof(a)); memset(&b, 0, sizeof(b));
             a.def = m->pdef; a.x = -1.8f; a.fx = 1.0f; a.fz = 0.0f;
             b.def = m->edef; b.x = 1.8f;  b.fx = -1.0f; b.fz = 0.0f;
-            if (dlg_post && !player_won) { /* unused, kept simple */ }
             draw_fighter(&a);
             draw_fighter(&b);
             gfx_2d();
