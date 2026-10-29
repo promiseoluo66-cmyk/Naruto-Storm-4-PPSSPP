@@ -68,7 +68,7 @@ typedef struct {
     unsigned awk_col;
 } Def;
 
-#define NUM_CHARS 8
+#define NUM_CHARS 16
 static const Def roster[NUM_CHARS] = {
     { "NARUTO", 1000, 0.135f, RGB(245,140,20), RGB(25,50,190), RGB(250,215,60), RGB(80,180,255),
       { { "RASENGAN",      MV_DASH,  25, 240, 120, 20, 0.45f, 2.0f, 0.30f, 0.5f },
@@ -116,11 +116,51 @@ static const Def roster[NUM_CHARS] = {
       { { "DIMENSION SHIFT",    MV_WARP,   30, 480,  90, 14, 0.00f, 2.5f, 0.25f, 0.0f },
         { "TRUTH-SEEKING BALLS", MV_SPREAD, 40, 420, 160, 18, 0.26f, 0.0f, 0.20f, 0.6f },
         { "EXPANSIVE PUSH",     MV_PUSH,   35, 540,  70, 16, 0.00f, 6.5f, 0.70f, 0.0f } },
-      "INFINITE TSUKUYOMI", 400, 0, "NONE", RGB(255,255,255) }
+      "INFINITE TSUKUYOMI", 400, 0, "NONE", RGB(255,255,255) },
+    { "MINATO", 930, 0.170f, RGB(235,190,65), RGB(245,240,220), RGB(245,205,80), RGB(255,225,100),
+      { { "FLYING RAIJIN", MV_WARP, 30, 300, 125, 18, 0.0f, 2.5f, 0.28f, 0.0f },
+        { "RASENGAN", MV_DASH, 25, 240, 120, 18, 0.48f, 2.0f, 0.30f, 0.5f },
+        { "YELLOW FLASH", MV_MULTI, 35, 390, 145, 20, 0.0f, 3.2f, 0.30f, 0.0f } },
+      "FLYING RAIJIN LEVEL 2", 470, 1, "KURAMA CHAKRA", RGB(255,190,55) },
+    { "ITACHI", 900, 0.140f, RGB(35,30,40), RGB(150,35,45), RGB(25,20,30), RGB(170,35,65),
+      { { "AMATERASU", MV_DOT, 35, 540, 115, 8, 0.27f, 0.0f, 0.0f, 0.85f },
+        { "TSUKUYOMI", MV_WARP, 35, 420, 120, 22, 0.0f, 2.8f, 0.30f, 0.0f },
+        { "FIRE STYLE", MV_PROJ, 25, 240, 95, 14, 0.30f, 0.0f, 0.18f, 1.1f } },
+      "SUSANOO TOTSUKA BLADE", 480, 1, "SUSANOO", RGB(220,75,45) },
+    { "PAIN", 1080, 0.130f, RGB(40,35,45), RGB(180,65,75), RGB(25,20,25), RGB(190,70,90),
+      { { "SHINRA TENSEI", MV_PUSH, 35, 480, 105, 20, 0.0f, 6.4f, 0.7f, 0.0f },
+        { "SUMMONING", MV_HOMING, 30, 360, 115, 14, 0.27f, 0.0f, 0.22f, 0.8f },
+        { "CHAOTIC TENSEI", MV_GROUND, 45, 600, 155, 24, 0.0f, 3.4f, 0.48f, 0.0f } },
+      "PLANETARY DEVASTATION", 490, 1, "SIX PATHS OF PAIN", RGB(155,115,190) },
+    { "GAARA", 970, 0.125f, RGB(145,120,95), RGB(125,45,45), RGB(100,65,45), RGB(205,150,90),
+      { { "SAND COFFIN", MV_WARP, 30, 420, 110, 18, 0.0f, 2.8f, 0.32f, 0.0f },
+        { "SAND SHOWER", MV_SPREAD, 25, 300, 90, 12, 0.30f, 0.0f, 0.18f, 0.45f },
+        { "SAND TSUNAMI", MV_GROUND, 40, 540, 145, 22, 0.0f, 4.2f, 0.5f, 0.0f } },
+      "SAND MAUSOLEUM", 455, 1, "SHUKAKU ARMOR", RGB(190,150,100) },
+    { "MIGHT GUY", 1000, 0.175f, RGB(45,135,65), RGB(35,35,40), RGB(30,35,25), RGB(80,220,100),
+      { { "DYNAMIC ENTRY", MV_DASH, 25, 240, 130, 20, 0.52f, 2.2f, 0.36f, 0.5f },
+        { "EVENING ELEPHANT", MV_BARRAGE, 40, 540, 150, 20, 0.35f, 0.0f, 0.28f, 0.65f },
+        { "HIRUDORA", MV_PROJ, 45, 540, 175, 22, 0.28f, 0.0f, 0.3f, 1.2f } },
+      "NIGHT GUY", 540, 1, "EIGHT GATES", RGB(255,70,50) },
+    { "JIRAIYA", 1040, 0.135f, RGB(195,195,205), RGB(180,40,45), RGB(230,230,235), RGB(220,220,255),
+      { { "RASENGAN", MV_DASH, 25, 240, 115, 18, 0.46f, 2.0f, 0.28f, 0.5f },
+        { "TOAD OIL BOMB", MV_SPREAD, 35, 390, 125, 16, 0.28f, 0.0f, 0.25f, 0.7f },
+        { "HAIR NEEDLES", MV_BARRAGE, 25, 360, 95, 12, 0.30f, 0.0f, 0.15f, 0.42f } },
+      "SAGE ART GOEMON", 435, 1, "TOAD SAGE MODE", RGB(230,160,70) },
+    { "OROCHIMARU", 950, 0.145f, RGB(220,220,220), RGB(100,70,130), RGB(40,35,50), RGB(170,130,220),
+      { { "SNAKE STRIKE", MV_DASH, 25, 270, 115, 20, 0.40f, 2.0f, 0.3f, 0.5f },
+        { "SNAKE SUMMON", MV_HOMING, 35, 420, 135, 16, 0.24f, 0.0f, 0.5f, 0.8f },
+        { "HIDDEN SHADOW SNAKE", MV_BARRAGE, 30, 420, 120, 16, 0.28f, 0.0f, 0.22f, 0.45f } },
+      "EIGHT BRANCHES", 450, 1, "WHITE SNAKE FORM", RGB(230,230,240) },
+    { "KILLER BEE", 1030, 0.155f, RGB(35,35,40), RGB(30,30,35), RGB(20,20,25), RGB(90,170,245),
+      { { "LARIAT", MV_DASH, 25, 240, 125, 18, 0.50f, 2.2f, 0.35f, 0.5f },
+        { "INK CLONES", MV_MULTI, 25, 360, 105, 14, 0.0f, 3.0f, 0.18f, 0.0f },
+        { "TAIL BEAST BOMB", MV_PROJ, 45, 540, 175, 22, 0.26f, 0.0f, 0.32f, 1.2f } },
+      "EIGHT-TAILS BOMB", 475, 1, "GYUKI CHAKRA", RGB(70,140,235) }
 };
 
 static const char *unlock_hint[NUM_CHARS] = {
-    "", "", "", "CLEAR STORY CH1", "CLEAR STORY CH2", "", "CLEAR STORY CH3", "CLEAR STORY CH5"
+    "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""
 };
 
 /* ---------------- story data ---------------- */
@@ -261,11 +301,12 @@ static unsigned chars_unlocked(void)
     int i;
     for (i = 0; i < NUM_MISSIONS; i++)
         if (((sv.completed >> i) & 1u) && missions[i].unlock_char >= 0) m |= 1u << missions[i].unlock_char;
-    return m;
+    (void)m;
+    return (1u << NUM_CHARS) - 1u;
 }
 
 /* ---------------- fighter ---------------- */
-typedef enum { FS_IDLE, FS_ATTACK, FS_JUTSU, FS_CHARGE, FS_DASH, FS_ULT, FS_AWAKEN } FState;
+typedef enum { FS_IDLE, FS_ATTACK, FS_JUTSU, FS_CHARGE, FS_DASH, FS_ULT, FS_TEAM, FS_AWAKEN } FState;
 
 typedef struct {
     int def, is_ai;
@@ -282,7 +323,7 @@ typedef struct {
 
 typedef struct {
     float ax, ay;
-    int atk, jutsu, charge, guard, jump, dash, chakra_dash, substitute, ult, awaken, support;
+    int atk, jutsu, charge, guard, jump, dash, chakra_dash, substitute, ult, awaken, support, team;
 } Input;
 
 typedef struct {
@@ -558,6 +599,13 @@ static void start_jutsu(Fighter *f, int idx)
 static int try_special(Fighter *f, const Input *in)
 {
     const Def *d = &roster[f->def];
+    if (in->team && f->chakra >= 70.0f && f->supm >= 100.0f &&
+        (f->sup[0] >= 0 || f->sup[1] >= 0) && f->sup_t == 0) {
+        f->state = FS_TEAM; f->timer = 0; f->inv = 12;
+        f->supm = 0.0f;
+        set_msg("TEAM ULTIMATE!");
+        return 1;
+    }
     if (in->ult && f->chakra >= 100.0f) {
         f->state = FS_ULT; f->timer = 0; f->inv = 0;
         return 1;
@@ -659,6 +707,11 @@ static void fighter_update(Fighter *f, Fighter *o, const Input *in)
             } break;
             case FS_ATTACK:
                 f->timer++;
+                if (f->combo >= 2 && f->timer >= 3 && f->timer <= 10 && in->jutsu > 0) {
+                    start_jutsu(f, in->jutsu - 1);
+                    if (f->state == FS_JUTSU) break;
+                }
+                if (f->combo >= 2 && in->team && try_special(f, in)) break;
                 if (f->timer < 6 && dist > 1.6f) { f->x += f->fx * 0.08f; f->z += f->fz * 0.08f; }
                 if (f->timer == 5) melee_hit(f, o);
                 if (in->atk && f->timer >= 4 && f->combo < 4) f->queued = 1;
@@ -711,6 +764,15 @@ static void fighter_update(Fighter *f, Fighter *o, const Input *in)
                     shake = 0.5f;
                 }
                 if (f->timer >= 100) { o->frozen = 0; f->state = FS_IDLE; }
+                break;
+            case FS_TEAM:
+                f->timer++;
+                if (!o->dead) o->frozen = 1;
+                if (f->timer == 1) { f->chakra -= 70.0f; o->inv = 0; }
+                if (f->timer == 18) { deal_damage(o, f, 55.0f, 14, 0.16f); spawn_fx(o->x, o->y + 1.5f, o->z, RGB(100,190,255), 10); shake = 0.16f; }
+                if (f->timer == 40) { deal_damage(o, f, 85.0f, 18, 0.24f); spawn_fx(o->x, o->y + 1.5f, o->z, roster[f->def].orb, 14); shake = 0.25f; }
+                if (f->timer == 66) { deal_damage(o, f, 235.0f, 30, 0.65f); spawn_fx(o->x, o->y + 1.5f, o->z, RGB(255,235,180), 24); shake = 0.48f; }
+                if (f->timer >= 98) { o->frozen = 0; f->state = FS_IDLE; }
                 break;
             case FS_AWAKEN:
                 f->timer++;
@@ -787,7 +849,8 @@ static Input read_input(const SceCtrlData *p, unsigned pressed)
     if (p->Buttons & PSP_CTRL_RIGHT) in.ax = 1.0f;
     if (p->Buttons & PSP_CTRL_UP)    in.ay = 1.0f;
     if (p->Buttons & PSP_CTRL_DOWN)  in.ay = -1.0f;
-    in.atk = !!(pressed & PSP_CTRL_CIRCLE);
+    in.team = !!((p->Buttons & PSP_CTRL_LTRIGGER) && (pressed & PSP_CTRL_CIRCLE));
+    in.atk = !!(pressed & PSP_CTRL_CIRCLE) && !in.team;
     if (pressed & PSP_CTRL_SQUARE) {
         if (p->Buttons & PSP_CTRL_LTRIGGER) in.support = 1;
         else {
@@ -813,8 +876,8 @@ static Input read_input(const SceCtrlData *p, unsigned pressed)
 /* ---------------- camera ---------------- */
 static Fighter *ult_caster(void)
 {
-    if (pl.state == FS_ULT) return &pl;
-    if (en.state == FS_ULT) return &en;
+    if (pl.state == FS_ULT || pl.state == FS_TEAM) return &pl;
+    if (en.state == FS_ULT || en.state == FS_TEAM) return &en;
     return NULL;
 }
 
@@ -911,8 +974,12 @@ static void start_free_battle(int pdef)
     int e, ps[2], es[2];
     srand(frame);
     do { e = rand() % NUM_CHARS; } while (e == pdef);
-    ps[0] = pick_support(pdef, e); ps[1] = -1;
-    es[0] = pick_support(pdef, e); es[1] = -1;
+    ps[0] = pick_support(pdef, e);
+    ps[1] = pick_support(pdef, e);
+    if (ps[1] == ps[0]) ps[1] = -1;
+    es[0] = pick_support(pdef, e);
+    es[1] = pick_support(pdef, e);
+    if (es[1] == es[0]) es[1] = -1;
     battle_start(pdef, e, 0, rand() % NUM_ARENAS, 1.0f, ps, es);
 }
 
@@ -1270,6 +1337,20 @@ static void draw_ult_fx(const Fighter *c, const Fighter *o)
     float dist = dist_xz(c->x, c->z, o->x, o->z);
     float s;
 
+    if (c->state == FS_TEAM) {
+        float pulse = 1.0f + 0.08f * (float)(t % 8);
+        float midx = (c->x + o->x) * 0.5f, midz = (c->z + o->z) * 0.5f;
+        if (t < 66) {
+            part(c, 0.0f, 1.8f, 0.8f, pulse, pulse, pulse, d->orb);
+            gfx_box(midx, 1.5f, midz, 0.55f + t * 0.025f, 0.35f + t * 0.01f, dist * 0.9f, d->orb);
+            if ((t / 4) & 1) gfx_box(o->x, 1.45f, o->z, 1.2f + t * 0.015f, 1.8f, 1.2f + t * 0.015f, RGB(255,255,235));
+        } else if (t < 82) {
+            float flash = 1.0f + (t - 66) * 0.5f;
+            gfx_box(o->x, 1.4f, o->z, flash, flash, flash, RGB(255,255,255));
+            part(c, 0.0f, 1.7f, 0.0f, flash, flash, flash, RGB(255,220,100));
+        }
+        return;
+    }
     switch (c->def) {
     case 0:
         s = 0.4f + t * 0.04f; if (s > 3.0f) s = 3.0f;
@@ -1446,6 +1527,8 @@ static void draw_hud(void)
     }
     if (pl.supm >= 100.0f && (pl.sup[0] >= 0 || pl.sup[1] >= 0))
         gfx_text(10, 222, 1, RGB(120, 255, 150), "SUPPORT READY: L + SQUARE");
+    if (pl.supm >= 100.0f && pl.chakra >= 70.0f && (pl.sup[0] >= 0 || pl.sup[1] >= 0))
+        gfx_text(10, 210, 1, RGB(255, 220, 100), "TEAM ULTIMATE READY: L + CIRCLE");
     if (pl.chakra >= 100.0f) gfx_text(10, 246, 1, RGB(255, 220, 60), "ULTIMATE READY: HOLD TRIANGLE + CIRCLE");
     else if (pl.awm >= 100.0f && pd->has_awk && pl.awk == 0) gfx_text(10, 246, 1, RGB(255, 200, 40), "AWAKENING READY: L + R + TRIANGLE");
     gfx_text(10, 262, 1, RGB(210, 210, 210), "O:ATK  X:JUMP  L:GUARD  R:DODGE  TRI:CHARGE  START:PAUSE");
@@ -1474,6 +1557,24 @@ static void draw_hud(void)
     }
 }
 
+static void draw_team_combo_partners(const Fighter *f)
+{
+    int i;
+    float rx = -f->fz, rz = f->fx;
+    if (f->state != FS_TEAM || f->timer < 8 || f->timer > 82) return;
+    for (i = 0; i < 2; i++) {
+        Fighter g; int sid = f->sup[i];
+        if (sid < 0 || sid >= NUM_CHARS) continue;
+        memset(&g, 0, sizeof(g));
+        g.def = sid;
+        g.x = f->x + rx * (i == 0 ? -1.25f : 1.25f) - f->fx * 0.15f;
+        g.z = f->z + rz * (i == 0 ? -1.25f : 1.25f) - f->fz * 0.15f;
+        g.fx = f->fx; g.fz = f->fz; g.phase = frame * 0.12f + (float)i;
+        g.state = FS_ATTACK; g.timer = (f->timer % 12) + 2;
+        draw_fighter(&g);
+    }
+}
+
 static void draw_battle(void)
 {
     int i;
@@ -1485,6 +1586,8 @@ static void draw_battle(void)
     draw_arena(cur_arena, camx, camz);
     draw_fighter(&pl);
     draw_fighter(&en);
+    draw_team_combo_partners(&pl);
+    draw_team_combo_partners(&en);
     draw_support(&pl);
     draw_support(&en);
     if (c) draw_ult_fx(c, (c == &pl) ? &en : &pl);
