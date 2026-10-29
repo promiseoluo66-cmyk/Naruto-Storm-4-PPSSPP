@@ -6,6 +6,7 @@
 #include <malloc.h>
 #include <string.h>
 #include "model.h"
+#include "assets.h"
 
 #define NMDL_VERSION 2
 #define NMTX_VERSION 1
@@ -112,6 +113,14 @@ int model_load(Model *model, const char *path)
     return 0;
 }
 
+int model_load_asset(Model *model, AssetCategory category, const char *filename)
+{
+    char path[256];
+    int result = assets_build_path(path, sizeof(path), category, filename);
+    if (result < 0) return -7;
+    return model_load(model, path);
+}
+
 int model_texture_load(ModelTexture *texture, const char *path)
 {
     SceUID fd;
@@ -157,6 +166,15 @@ int model_texture_load(ModelTexture *texture, const char *path)
     texture->format = header.format;
     sceKernelDcacheWritebackInvalidateRange(texture->pixels, bytes);
     return 0;
+}
+
+int model_texture_load_asset(ModelTexture *texture, AssetCategory category,
+                             const char *filename)
+{
+    char path[256];
+    int result = assets_build_path(path, sizeof(path), category, filename);
+    if (result < 0) return -7;
+    return model_texture_load(texture, path);
 }
 
 void model_texture_bind(const ModelTexture *texture)
