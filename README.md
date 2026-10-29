@@ -46,12 +46,20 @@ Unlock order: Ch1 -> Ch2 -> Ch3 -> Ch4 -> Ch5 -> Ch6. All missions are simplifie
 | Square | Jutsu 1; D-pad Up + Square = Jutsu 2; D-pad Down + Square = Jutsu 3 |
 | L + Square | Support partner strike (needs full support bar) |
 | Triangle (hold) | Charge chakra |
+| Triangle + Cross | Chakra dash toward the locked-on opponent (15 chakra); a hit can start a combo |
+| L + R together while in hit-stun | Substitution Jutsu (10 chakra; escapes hit-stun) |
 | Triangle (hold) + Circle at full chakra | Ultimate Jutsu |
 | L + R + Triangle when awakening bar is full | Awakening / transformation |
 | Cross | Jump |
 | L | Guard (combo finisher, big-stun jutsu and Ultimates break guard) |
 | R | Dodge / substitution (10 chakra) |
 | Start | Pause (Select while paused: quit) |
+
+## Storm-style combat pass (prototype)
+- Added a homing chakra dash with a dash-hit that can start a melee combo.
+- Added a substitution escape during hit-stun, costing 10 chakra and granting brief invulnerability.
+- R-trigger alone remains an evasive ninja move.
+- This is inspired by the original game's combat rhythm, not an exact recreation; character animations, advanced combo routes, support switching and full original move timing still need work.
 
 ## Save data
 Progress is written to `ms0:/PSP/SAVEDATA/NARUTOSTORM4/save.bin` (small file with checksum). If that path is not writable, the mission-complete screen says so. Story menu: Square twice erases progress.
