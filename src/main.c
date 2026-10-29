@@ -636,8 +636,8 @@ static void fighter_update(Fighter *f, Fighter *o, const Input *in)
                 f->x += mx * sp; f->z += mz * sp;
                 f->phase += ml * 0.35f;
                 if (try_special(f, in)) break;
-                if (in->jump && f->y <= 0.001f) f->vy = 0.24f;
-                if (in->charge && !in->guard) { f->state = FS_CHARGE; f->timer = 0; }
+                if (in->jump && !in->chakra_dash && f->y <= 0.001f) f->vy = 0.24f;
+                if (in->charge && !in->guard && !in->chakra_dash) { f->state = FS_CHARGE; f->timer = 0; }
                 else if (in->atk) {
                     f->combo = (f->combo_win > 0 && f->combo < 4) ? f->combo + 1 : 1;
                     f->combo_win = 0; f->queued = 0; f->state = FS_ATTACK; f->timer = 0;
