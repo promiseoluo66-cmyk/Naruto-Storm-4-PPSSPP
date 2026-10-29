@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,8 +24,21 @@ jobs:
       - name: Show output
         run: ls -la EBOOT.PBP
 
-      - name: Upload EBOOT.PBP
+      - name: Upload EBOOT.PBP (artifact)
         uses: actions/upload-artifact@v4
         with:
           name: EBOOT.PBP
           path: EBOOT.PBP
+
+      - name: Publish release (download EBOOT.PBP from the Releases page)
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: Build ${{ github.run_number }}
+          body: |
+            Download EBOOT.PBP below, put it in a folder called NarutoStorm4 inside PSP/GAME/ on your phone, then open that folder in PPSSPP.
+            Untested prototype build.
+          prerelease: true
+          files: EBOOT.PBP
