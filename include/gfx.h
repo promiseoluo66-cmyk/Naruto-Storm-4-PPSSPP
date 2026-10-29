@@ -17,6 +17,7 @@ void gfx_box_rot(float x, float y, float z, float w, float h, float d, float yaw
 /* 2D overlay (screen pixels, 480x272) */
 void gfx_2d(void);
 void gfx_rect(float x, float y, float w, float h, unsigned color);
+void gfx_gradient(float x, float y, float w, float h, unsigned top, unsigned bottom);
 void gfx_text(float x, float y, int scale, unsigned color, const char *s);
 int  gfx_text_wrap(float x, float y, int scale, unsigned color, const char *s, int maxchars);
 int  gfx_text_width(const char *s, int scale);

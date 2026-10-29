@@ -1,5 +1,6 @@
 /*
- * gfx.c - minimal PSP GU renderer: 3D boxes, 2D rects, built-in 5x7 bitmap font.
+ * gfx.c - minimal PSP GU renderer: 3D boxes (vertical gradient shading), 2D rects,
+ * gradients, built-in 5x7 bitmap font with drop shadow.
  */
 #include <pspkernel.h>
 #include <pspdisplay.h>
@@ -66,7 +67,7 @@ void gfx_3d(void)
     sceGuEnable(GU_DEPTH_TEST);
     sceGumMatrixMode(GU_PROJECTION);
     sceGumLoadIdentity();
-    sceGumPerspective(60.0f, (float)SCR_W / (float)SCR_H, 0.5f, 120.0f);
+    sceGumPerspective(60.0f, (float)SCR_W / (float)SCR_H, 0.5f, 140.0f);
     sceGumMatrixMode(GU_VIEW);
     sceGumLoadIdentity();
     sceGumMatrixMode(GU_MODEL);
@@ -90,6 +91,9 @@ static unsigned shade(unsigned c, float f)
     unsigned r = (unsigned)((c & 255) * f);
     unsigned g = (unsigned)(((c >> 8) & 255) * f);
     unsigned b = (unsigned)(((c >> 16) & 255) * f);
+    if (r > 255) r = 255;
+    if (g > 255) g = 255;
+    if (b > 255) b = 255;
     return RGB(r, g, b);
 }
 
@@ -98,7 +102,7 @@ void gfx_box_rot(float x, float y, float z, float w, float h, float d, float yaw
     static const int faces[6][4] = {
         {0, 1, 2, 3}, {5, 4, 7, 6}, {4, 0, 3, 7}, {1, 5, 6, 2}, {3, 2, 6, 7}, {4, 5, 1, 0}
     };
-    static const float sh[6] = { 0.70f, 0.85f, 0.60f, 0.60f, 1.00f, 0.45f };
+    static const float sh[6] = { 0.74f, 0.88f, 0.62f, 0.62f, 1.10f, 0.45f };
     float hx = w * 0.5f, hy = h * 0.5f, hz = d * 0.5f;
     float c[8][3] = {
         {-hx, -hy, -hz}, {hx, -hy, -hz}, {hx, hy, -hz}, {-hx, hy, -hz},
@@ -109,12 +113,13 @@ void gfx_box_rot(float x, float y, float z, float w, float h, float d, float yaw
     ScePspFVector3 t = { x, y, z };
 
     for (f = 0; f < 6; f++) {
-        unsigned col = shade(color, sh[f]);
         static const int tri[6] = { 0, 1, 2, 0, 2, 3 };
         int k;
         for (k = 0; k < 6; k++) {
             int ci = faces[f][tri[k]];
-            v[i].color = col;
+            /* darker towards the bottom of side faces: soft vertical gradient */
+            float g = (f < 4 && c[ci][1] < 0.0f) ? 0.72f : 1.0f;
+            v[i].color = shade(color, sh[f] * g);
             v[i].x = c[ci][0];
             v[i].y = c[ci][1];
             v[i].z = c[ci][2];
@@ -145,6 +150,16 @@ void gfx_rect(float x, float y, float w, float h, unsigned color)
     v[0].color = color; v[0].x = x;     v[0].y = y;     v[0].z = 0.0f;
     v[1].color = color; v[1].x = x + w; v[1].y = y + h; v[1].z = 0.0f;
     sceGuDrawArray(GU_SPRITES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, 2, 0, v);
+}
+
+void gfx_gradient(float x, float y, float w, float h, unsigned top, unsigned bottom)
+{
+    Vtx *v = (Vtx *)sceGuGetMemory(4 * sizeof(Vtx));
+    v[0].color = top;    v[0].x = x;     v[0].y = y;     v[0].z = 0.0f;
+    v[1].color = top;    v[1].x = x + w; v[1].y = y;     v[1].z = 0.0f;
+    v[2].color = bottom; v[2].x = x;     v[2].y = y + h; v[2].z = 0.0f;
+    v[3].color = bottom; v[3].x = x + w; v[3].y = y + h; v[3].z = 0.0f;
+    sceGuDrawArray(GU_TRIANGLE_STRIP, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, 4, 0, v);
 }
 
 /* 5x7 font, 5 bits per row, bit 4 = leftmost pixel */
@@ -214,7 +229,7 @@ int gfx_text_width(const char *s, int scale)
     return (int)strlen(s) * 6 * scale;
 }
 
-void gfx_text(float x, float y, int scale, unsigned color, const char *s)
+static void text_raw(float x, float y, int scale, unsigned color, const char *s)
 {
     int count = 0, n = (int)strlen(s), i, r, c;
     Vtx *v;
@@ -244,6 +259,14 @@ void gfx_text(float x, float y, int scale, unsigned color, const char *s)
                 }
     }
     sceGuDrawArray(GU_SPRITES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, vi, 0, v);
+}
+
+/* text with a dark drop shadow so it stays readable on bright backgrounds */
+void gfx_text(float x, float y, int scale, unsigned color, const char *s)
+{
+    float off = (scale >= 2) ? 2.0f : 1.0f;
+    text_raw(x + off, y + off, scale, RGBA(0, 0, 0, 210), s);
+    text_raw(x, y, scale, color, s);
 }
 
 int gfx_text_wrap(float x, float y, int scale, unsigned color, const char *s, int maxchars)
