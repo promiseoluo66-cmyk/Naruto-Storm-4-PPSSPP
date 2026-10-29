@@ -9,7 +9,7 @@
  *
  * NMTX v1 texture format:
  *   "NMTX", u32 version=1, u32 width, u32 height, u32 format=1 (RGB565) or 3 (RGBA8888),
- *   followed by width*height RGBA8888 pixels.
+ *   followed by width*height pixels in the declared format (RGB565=2 bytes, RGBA8888=4 bytes).
  * Texture dimensions must be powers of two between 8 and 512.
  *
  * ModelVertex deliberately has a 24-byte stride. Align the allocated buffer
@@ -31,6 +31,7 @@ typedef struct {
     void *pixels;
     unsigned int width;
     unsigned int height;
+    unsigned int format; /* NMTX_FORMAT_RGB565 (1) or NMTX_FORMAT_RGBA8888 (3) */
 } ModelTexture;
 
 int model_load(Model *model, const char *path);
