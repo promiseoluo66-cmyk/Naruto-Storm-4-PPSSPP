@@ -1375,9 +1375,16 @@ static void draw_fighter(const Fighter *f)
     gfx_ellipsoid(f->x, 1.43f, f->z, 0.82f, 0.78f, 0.50f, body);
     part(f, 0.0f, 1.62f, 0.23f, 0.52f, 0.14f, 0.04f, acc);
     part(f, 0.0f, 1.82f, 0.0f, 0.22f, 0.14f, 0.22f, skin);
-    /* layered chest panel and waist trim add an anime-game costume silhouette */
+    /* costume panel, seams and waist trim break up flat colors */
     part(f, 0.0f, 1.38f, 0.255f, 0.46f, 0.34f, 0.035f, acc);
+    part(f, -0.29f, 1.48f, 0.276f, 0.035f, 0.40f, 0.025f, dark);
+    part(f,  0.29f, 1.48f, 0.276f, 0.035f, 0.40f, 0.025f, dark);
     part(f, 0.0f, 1.08f, 0.245f, 0.58f, 0.055f, 0.035f, RGB(205,175,95));
+    /* low-poly shin guards and sandal straps */
+    part(f, -0.20f, 0.43f, 0.19f, 0.27f, 0.42f, 0.035f, dark);
+    part(f,  0.20f, 0.43f, 0.19f, 0.27f, 0.42f, 0.035f, dark);
+    part(f, -0.20f, 0.18f, 0.27f, 0.28f, 0.055f, 0.035f, acc);
+    part(f,  0.20f, 0.18f, 0.27f, 0.28f, 0.055f, 0.035f, acc);
     /* shoulders */
     gfx_ellipsoid(f->x - 0.52f, 1.68f, f->z, 0.36f, 0.32f, 0.40f, body);
     gfx_ellipsoid(f->x + 0.52f, 1.68f, f->z, 0.36f, 0.32f, 0.40f, body);
@@ -1430,6 +1437,9 @@ static void draw_fighter(const Fighter *f)
     } else {
         gfx_ellipsoid(f->x - 0.55f, 1.39f, f->z - sw * 0.25f, 0.27f, 0.58f, 0.30f, body);
         gfx_ellipsoid(f->x + 0.55f, 1.39f, f->z + sw * 0.25f, 0.27f, 0.58f, 0.30f, body);
+        /* forearm guards and glove cuffs, with low polygon cost */
+        part(f, -0.56f, 1.14f, 0.08f, 0.25f, 0.12f, 0.28f, acc);
+        part(f,  0.56f, 1.14f, 0.08f, 0.25f, 0.12f, 0.28f, acc);
         gfx_ellipsoid(f->x - 0.56f, 1.02f, f->z - sw * 0.25f, 0.22f, 0.22f, 0.22f, skin);
         gfx_ellipsoid(f->x + 0.56f, 1.02f, f->z + sw * 0.25f, 0.22f, 0.22f, 0.22f, skin);
     }
