@@ -1,10 +1,11 @@
 /*
- * Naruto Storm 4 PPSSPP - Phase 5
+ * Naruto Storm 4 PPSSPP - Phase 5 + visual upgrade
  * 8 fighters (adds Obito, Kaguya), support characters (L+Square), 4 arenas,
  * boss transformation cinematics, 6 story missions (Ch1-Ch6).
- * Includes Phase 2-4: 3D combat, jutsu/ultimates/awakening, story + save.
+ * Visual pass: detailed procedural character models, sky gradients, scenery,
+ * hit sparks, screen shake.
  *
- * Models are placeholder boxes. Move/mission data is compiled in; JSON loading comes later.
+ * Models are procedural boxes (no imported assets). Move/mission data is compiled in.
  */
 #include <pspkernel.h>
 #include <pspctrl.h>
@@ -21,6 +22,7 @@ PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
 
 #define ARENA_R 9.5f
 #define MAXP 12
+#define MAXPART 48
 #define AWAKEN_FRAMES 1800
 #define NUM_ARENAS 4
 #define CINE_FRAMES 75
@@ -140,7 +142,6 @@ typedef struct {
 /* NOTE: indices are stored in save files. Only ever append new missions. */
 #define NUM_MISSIONS 6
 static const Mission missions[NUM_MISSIONS] = {
-    /* 0: Chapter 1 */
     { "HASHIRAMA VS MADARA", "DEFEAT MADARA", 1, 2, 3, 1, -1, 1.0f,
       { { 0.6f, 1.25f, 1.1f, "MADARA: SUSANOO!", 1 }, { 0.3f, 1.5f, 1.2f, "MADARA: SIX PATHS POWER!", 2 } },
       5, { { "NARRATOR",  "Two legends of the shinobi world clash once more at the Valley of the End." },
@@ -152,7 +153,6 @@ static const Mission missions[NUM_MISSIONS] = {
            { "NARRATOR",  "The legendary duel ends. But the world is about to be swept into war." } },
       3, { -1, -1 }, { -1, -1 } },
 
-    /* 1: Chapter 2 */
     { "THE FOURTH GREAT NINJA WAR", "HOLD THE LINE", 2, 4, 3, 0, 0, 1.3f,
       { { 0.5f, 1.3f, 1.1f, "MADARA: SUSANOO!", 1 }, { 0.0f, 1.0f, 1.0f, "", 0 } },
       4, { { "NARRATOR", "The Fourth Great Ninja War begins. The Allied Shinobi Forces rise against an unstoppable enemy." },
@@ -163,7 +163,6 @@ static const Mission missions[NUM_MISSIONS] = {
            { "NARRATOR", "The Allied Forces gain precious time. The greatest battles are still to come." } },
       4, { 5, 0 }, { -1, -1 } },
 
-    /* 2: Chapter 6 (kept at index 2 for save compatibility) */
     { "NARUTO VS SASUKE", "SETTLE THE RIVALRY", 6, 0, 1, 2, 4, 1.4f,
       { { 0.66f, 1.2f, 1.1f, "SASUKE: SUSANOO!", 1 }, { 0.33f, 1.4f, 1.2f, "SASUKE: RINNEGAN POWER!", 2 } },
       3, { { "NARRATOR", "At the Valley of the End, two rivals face each other one last time." },
@@ -174,7 +173,6 @@ static const Mission missions[NUM_MISSIONS] = {
            { "NARRATOR", "The rivalry is settled, and their bond endures." } },
       -1, { -1, -1 }, { -1, -1 } },
 
-    /* 3: Chapter 3 */
     { "OBITO AND THE TEN-TAILS", "DEFEAT OBITO", 3, 0, 6, 1, 1, 1.5f,
       { { 0.6f, 1.3f, 1.1f, "OBITO: TEN-TAILS POWER!", 1 }, { 0.3f, 1.5f, 1.2f, "OBITO: JINCHURIKI FORM!", 2 } },
       3, { { "NARRATOR", "On the battlefield, the masked man reveals himself, wielding the power of the Ten-Tails." },
@@ -184,7 +182,6 @@ static const Mission missions[NUM_MISSIONS] = {
            { "NARRATOR", "The Ten-Tails' host falls, but the shadow of the moon is growing." } },
       6, { 1, 4 }, { -1, -1 } },
 
-    /* 4: Chapter 4 */
     { "MADARA UCHIHA", "DEFEAT MADARA", 4, 1, 3, 1, 3, 1.5f,
       { { 0.6f, 1.25f, 1.1f, "MADARA: SUSANOO!", 1 }, { 0.3f, 1.5f, 1.2f, "MADARA: SIX PATHS POWER!", 2 } },
       3, { { "NARRATOR", "Madara, revived with the power of the Ten-Tails, stands above the battlefield." },
@@ -194,7 +191,6 @@ static const Mission missions[NUM_MISSIONS] = {
            { "NARRATOR", "The Rabbit Goddess is about to return." } },
       -1, { 0, 5 }, { -1, -1 } },
 
-    /* 5: Chapter 5 */
     { "KAGUYA OTSUTSUKI", "DEFEAT KAGUYA", 5, 0, 7, 3, 4, 1.2f,
       { { 0.66f, 1.2f, 1.1f, "KAGUYA: DIMENSION SHIFT!", 1 }, { 0.33f, 1.4f, 1.2f, "KAGUYA: TRUTH-SEEKING FURY!", 2 } },
       3, { { "NARRATOR", "Kaguya Otsutsuki, the mother of chakra, descends. Team 7 stands together once more." },
@@ -205,7 +201,6 @@ static const Mission missions[NUM_MISSIONS] = {
       7, { 1, 5 }, { -1, -1 } }
 };
 
-/* chapter list shown in the story menu, in story order */
 #define NUM_ROWS 6
 static const char *row_title[NUM_ROWS] = {
     "1 HASHIRAMA VS MADARA", "2 FOURTH GREAT NINJA WAR", "3 OBITO AND THE TEN-TAILS",
@@ -297,8 +292,12 @@ typedef struct {
     Fighter *src, *tgt;
 } Proj;
 
+typedef struct { float x, y, z, vx, vy, vz; int life; unsigned col; } Particle;
+
 static Fighter pl, en;
 static Proj projs[MAXP];
+static Particle parts[MAXPART];
+static float shake = 0.0f;
 
 /* ---------------- game state ---------------- */
 typedef enum {
@@ -317,8 +316,11 @@ static int note_t = 0;
 static float camx, camy, camz, tgx, tgy, tgz;
 static float menu_angle = 0.0f;
 
-static const unsigned arena_sky[NUM_ARENAS] = {
-    RGB(110, 170, 235), RGB(200, 120, 80), RGB(70, 50, 90), RGB(30, 10, 50)
+static const unsigned sky_top[NUM_ARENAS] = {
+    RGB(50, 110, 220), RGB(70, 50, 110), RGB(25, 20, 55), RGB(10, 0, 30)
+};
+static const unsigned sky_bot[NUM_ARENAS] = {
+    RGB(175, 220, 255), RGB(250, 165, 95), RGB(150, 95, 135), RGB(95, 30, 115)
 };
 
 static void set_msg(const char *s) { strncpy(msg, s, 47); msg[47] = 0; msg_t = 120; }
@@ -328,6 +330,37 @@ static float dist_xz(float ax, float az, float bx, float bz)
 {
     float dx = ax - bx, dz = az - bz;
     return sqrtf(dx * dx + dz * dz);
+}
+
+/* ---------------- effects ---------------- */
+static void spawn_fx(float x, float y, float z, unsigned col, int n)
+{
+    int i, k = 0;
+    for (i = 0; i < MAXPART && k < n; i++) {
+        if (parts[i].life <= 0) {
+            Particle *p = &parts[i];
+            p->x = x; p->y = y; p->z = z;
+            p->vx = ((rand() % 200) - 100) * 0.0015f;
+            p->vy = 0.04f + (rand() % 100) * 0.0012f;
+            p->vz = ((rand() % 200) - 100) * 0.0015f;
+            p->life = 18 + rand() % 12;
+            p->col = col;
+            k++;
+        }
+    }
+}
+
+static void fx_update(void)
+{
+    int i;
+    for (i = 0; i < MAXPART; i++) {
+        Particle *p = &parts[i];
+        if (p->life <= 0) continue;
+        p->x += p->vx; p->y += p->vy; p->z += p->vz;
+        p->vy -= 0.004f;
+        p->life--;
+    }
+    shake *= 0.85f;
 }
 
 /* ---------------- fighter logic ---------------- */
@@ -357,6 +390,7 @@ static int deal_damage(Fighter *t, Fighter *src, float dmg, int stun, float kb)
     if (t->guarding && stun < 20) {
         t->hp -= dmg * 0.2f;
         t->x += dx / len * 0.3f; t->z += dz / len * 0.3f;
+        spawn_fx(t->x, t->y + 1.4f, t->z, RGB(120, 190, 255), 3);
         if (t->hp <= 0) { t->hp = 0; t->dead = 1; }
         return 2;
     }
@@ -366,6 +400,13 @@ static int deal_damage(Fighter *t, Fighter *src, float dmg, int stun, float kb)
     if (t->awk == 0) t->awm = fminf(100.0f, t->awm + dmg * 0.08f);
     t->stun = stun; t->kbx = dx / len * kb; t->kbz = dz / len * kb;
     t->state = FS_IDLE; t->combo = 0; t->queued = 0; t->hit_flash = 6;
+    if (dmg >= 100.0f) {
+        spawn_fx(t->x, t->y + 1.4f, t->z, RGB(255, 170, 40), 14);
+        if (shake < 0.22f) shake = 0.22f;
+    } else {
+        spawn_fx(t->x, t->y + 1.4f, t->z, RGB(255, 255, 190), 6);
+        if (shake < 0.05f) shake = 0.05f;
+    }
     return 1;
 }
 
@@ -491,7 +532,7 @@ static void jutsu_tick(Fighter *f, Fighter *o, const Move *m)
         if (t >= 22) f->state = FS_IDLE;
         break;
     case MV_HEAL:
-        if (t == 30) { f->hp = fminf(f->maxhp, f->hp + (float)m->dmg); }
+        if (t == 30) { f->hp = fminf(f->maxhp, f->hp + (float)m->dmg); spawn_fx(f->x, f->y + 2.0f, f->z, RGB(120, 255, 150), 10); }
         if (t >= 40) f->state = FS_IDLE;
         break;
     case MV_PHASE:
@@ -634,7 +675,11 @@ static void fighter_update(Fighter *f, Fighter *o, const Input *in)
                 if ((f->def == 4 || f->def == 5) && f->timer >= 40 && f->timer < 60 && dist > 1.4f) {
                     f->x += f->fx * 0.5f; f->z += f->fz * 0.5f;
                 }
-                if (f->timer == 60) deal_damage(o, f, (float)d->ult_dmg, 30, 0.6f);
+                if (f->timer == 60) {
+                    deal_damage(o, f, (float)d->ult_dmg, 30, 0.6f);
+                    spawn_fx(o->x, o->y + 1.4f, o->z, d->orb, 20);
+                    shake = 0.5f;
+                }
                 if (f->timer >= 100) { o->frozen = 0; f->state = FS_IDLE; }
                 break;
             case FS_AWAKEN:
@@ -781,6 +826,8 @@ static void battle_start(int pdef, int edef, int story, int arena, float boss_hp
     ps[0] = psup ? psup[0] : -1; ps[1] = psup ? psup[1] : -1;
     es[0] = esup ? esup[0] : -1; es[1] = esup ? esup[1] : -1;
     memset(projs, 0, sizeof(projs));
+    memset(parts, 0, sizeof(parts));
+    shake = 0.0f;
     make_fighter(&pl, pdef, -4.0f, 0.0f, 0);
     make_fighter(&en, edef, 4.0f, 0.0f, 1);
     pl.sup[0] = ps[0]; pl.sup[1] = ps[1];
@@ -848,6 +895,7 @@ static void battle_update(const SceCtrlData *pad, unsigned pressed)
         return;
     }
     if (msg_t > 0) msg_t--;
+    fx_update();
     intro++;
     if (intro < 90) { camera_update(0); return; }
     if (cine_timer > 0) { cine_timer--; camera_update(0); return; }
@@ -895,7 +943,6 @@ static void battle_update(const SceCtrlData *pad, unsigned pressed)
         }
     }
 
-    /* boss phases come from the mission data; each triggers a short cinematic */
     if (story_mode && !en.dead) {
         const Mission *m = &missions[cur_mission];
         float ratio = en.hp / en.maxhp;
@@ -907,6 +954,7 @@ static void battle_update(const SceCtrlData *pad, unsigned pressed)
                 set_msg(ph->msg);
                 cine_timer = CINE_FRAMES;
                 msg_t = CINE_FRAMES + 45;
+                shake = 0.3f;
             }
         }
     }
@@ -926,7 +974,7 @@ static void battle_update(const SceCtrlData *pad, unsigned pressed)
     }
 }
 
-/* ---------------- rendering ---------------- */
+/* ---------------- rendering: characters ---------------- */
 static void part(const Fighter *f, float rxo, float yo, float fzo, float w, float h, float dd, unsigned col)
 {
     float rx = -f->fz, rz = f->fx;
@@ -934,23 +982,110 @@ static void part(const Fighter *f, float rxo, float yo, float fzo, float w, floa
                 w, h, dd, atan2f(f->fx, f->fz), col);
 }
 
+/* hair, face and outfit details that make each character recognisable */
+static void draw_details(const Fighter *f, unsigned hair, unsigned dark)
+{
+    int id = f->def;
+    unsigned cloth = RGB(30, 50, 170), silver = RGB(195, 200, 212);
+
+    switch (id) {
+    case 0: /* Naruto: spiky blond hair, headband, whiskers, zip stripe */
+        part(f, -0.20f, 2.66f, 0.0f, 0.16f, 0.30f, 0.16f, hair);
+        part(f,  0.00f, 2.72f, 0.0f, 0.16f, 0.36f, 0.16f, hair);
+        part(f,  0.20f, 2.66f, 0.0f, 0.16f, 0.30f, 0.16f, hair);
+        part(f, -0.36f, 2.50f, 0.0f, 0.14f, 0.26f, 0.40f, hair);
+        part(f,  0.36f, 2.50f, 0.0f, 0.14f, 0.26f, 0.40f, hair);
+        part(f, 0.0f, 2.30f, 0.0f, 0.64f, 0.13f, 0.58f, cloth);
+        part(f, 0.0f, 2.30f, 0.30f, 0.30f, 0.12f, 0.04f, silver);
+        part(f, -0.30f, 2.06f, 0.20f, 0.03f, 0.03f, 0.14f, dark);
+        part(f,  0.30f, 2.06f, 0.20f, 0.03f, 0.03f, 0.14f, dark);
+        part(f, -0.30f, 2.13f, 0.20f, 0.03f, 0.03f, 0.14f, dark);
+        part(f,  0.30f, 2.13f, 0.20f, 0.03f, 0.03f, 0.14f, dark);
+        part(f, 0.0f, 1.5f, 0.23f, 0.18f, 0.55f, 0.04f, RGB(25, 50, 190));
+        break;
+    case 1: /* Sasuke: dark swept hair, headband, high collar */
+        part(f, 0.00f, 2.40f, -0.34f, 0.50f, 0.50f, 0.20f, hair);
+        part(f, -0.20f, 2.62f, -0.20f, 0.16f, 0.30f, 0.30f, hair);
+        part(f,  0.20f, 2.62f, -0.20f, 0.16f, 0.30f, 0.30f, hair);
+        part(f, -0.18f, 2.22f, 0.27f, 0.18f, 0.18f, 0.04f, hair);
+        part(f,  0.18f, 2.22f, 0.27f, 0.18f, 0.18f, 0.04f, hair);
+        part(f, 0.0f, 1.78f, -0.05f, 0.62f, 0.26f, 0.5f, RGB(235, 235, 235));
+        break;
+    case 2: /* Hashirama: long dark hair, red armor with shoulder plates */
+        part(f, -0.34f, 1.95f, -0.12f, 0.12f, 1.00f, 0.42f, hair);
+        part(f,  0.34f, 1.95f, -0.12f, 0.12f, 1.00f, 0.42f, hair);
+        part(f, 0.00f, 1.90f, -0.32f, 0.60f, 1.10f, 0.12f, hair);
+        part(f, -0.56f, 1.68f, 0.0f, 0.34f, 0.14f, 0.42f, RGB(70, 70, 75));
+        part(f,  0.56f, 1.68f, 0.0f, 0.34f, 0.14f, 0.42f, RGB(70, 70, 75));
+        part(f, 0.0f, 1.45f, 0.23f, 0.7f, 0.5f, 0.05f, RGB(190, 60, 55));
+        break;
+    case 3: /* Madara: long spiky hair, red battle armor */
+        part(f, 0.00f, 1.95f, -0.34f, 0.70f, 1.10f, 0.14f, hair);
+        part(f, -0.42f, 2.30f, -0.25f, 0.18f, 0.60f, 0.30f, hair);
+        part(f,  0.42f, 2.30f, -0.25f, 0.18f, 0.60f, 0.30f, hair);
+        part(f, -0.20f, 2.70f, 0.0f, 0.16f, 0.30f, 0.16f, hair);
+        part(f,  0.20f, 2.70f, 0.0f, 0.16f, 0.30f, 0.16f, hair);
+        part(f, 0.18f, 2.30f, 0.28f, 0.26f, 0.40f, 0.05f, hair);
+        part(f, 0.0f, 1.45f, 0.23f, 0.72f, 0.52f, 0.06f, RGB(160, 45, 55));
+        part(f, -0.58f, 1.68f, 0.0f, 0.36f, 0.20f, 0.46f, RGB(160, 45, 55));
+        part(f,  0.58f, 1.68f, 0.0f, 0.36f, 0.20f, 0.46f, RGB(160, 45, 55));
+        break;
+    case 4: /* Kakashi: silver spiky hair, face mask, slanted headband */
+        part(f,  0.00f, 2.72f, 0.0f, 0.20f, 0.30f, 0.20f, hair);
+        part(f, -0.26f, 2.60f, 0.0f, 0.20f, 0.30f, 0.20f, hair);
+        part(f,  0.26f, 2.60f, 0.0f, 0.20f, 0.30f, 0.20f, hair);
+        part(f, 0.0f, 1.98f, 0.28f, 0.54f, 0.28f, 0.05f, RGB(35, 45, 70));
+        part(f, 0.0f, 2.30f, 0.0f, 0.64f, 0.13f, 0.58f, cloth);
+        part(f, 0.14f, 2.14f, 0.29f, 0.24f, 0.22f, 0.04f, cloth);
+        part(f, 0.0f, 1.5f, 0.23f, 0.7f, 0.58f, 0.04f, RGB(80, 100, 70));
+        break;
+    case 5: /* Sakura: pink bob, red headband, red top with white emblem */
+        part(f, -0.32f, 2.15f, 0.0f, 0.10f, 0.50f, 0.56f, hair);
+        part(f,  0.32f, 2.15f, 0.0f, 0.10f, 0.50f, 0.56f, hair);
+        part(f,  0.00f, 2.20f, -0.30f, 0.60f, 0.60f, 0.10f, hair);
+        part(f, 0.0f, 2.30f, 0.0f, 0.64f, 0.12f, 0.58f, RGB(200, 40, 60));
+        part(f, 0.0f, 1.5f, 0.23f, 0.18f, 0.18f, 0.04f, RGB(250, 250, 250));
+        break;
+    case 6: /* Obito: orange mask, dark spiky hair, dark cloak */
+        part(f, 0.00f, 2.12f, 0.28f, 0.54f, 0.54f, 0.05f, RGB(255, 120, 40));
+        part(f, 0.12f, 2.16f, 0.31f, 0.10f, 0.10f, 0.02f, dark);
+        part(f,  0.00f, 2.70f, 0.0f, 0.20f, 0.30f, 0.20f, hair);
+        part(f, -0.26f, 2.60f, 0.0f, 0.20f, 0.30f, 0.20f, hair);
+        part(f,  0.26f, 2.60f, 0.0f, 0.20f, 0.30f, 0.20f, hair);
+        part(f, 0.0f, 1.20f, -0.32f, 0.95f, 1.90f, 0.10f, RGB(35, 35, 45));
+        break;
+    case 7: /* Kaguya: long white hair, horns, third eye, robe */
+        part(f, 0.0f, 1.50f, -0.34f, 0.80f, 2.00f, 0.12f, hair);
+        part(f, 0.0f, 2.32f, 0.28f, 0.10f, 0.10f, 0.03f, RGB(220, 40, 60));
+        part(f, -0.18f, 2.62f, 0.0f, 0.10f, 0.30f, 0.10f, RGB(255, 255, 255));
+        part(f,  0.18f, 2.62f, 0.0f, 0.10f, 0.30f, 0.10f, RGB(255, 255, 255));
+        break;
+    }
+}
+
 static void draw_fighter(const Fighter *f)
 {
     const Def *d = &roster[f->def];
-    unsigned body = d->body, acc = d->accent, hair = d->hair, skin = RGB(240, 200, 160);
+    unsigned body = d->body, acc = d->accent, hair = d->hair, skin = RGB(242, 205, 165);
+    unsigned dark = RGB(25, 25, 35), eyec = RGB(25, 25, 35), belt = RGB(35, 30, 35);
     float sw = sinf(f->phase) * 0.35f;
-    int i;
+    int i, id = f->def;
     const Move *mv = (f->state == FS_JUTSU) ? &d->jut[f->move] : NULL;
 
-    if (f->hit_flash > 0) body = RGB(255, 255, 255);
-    gfx_box(f->x, 0.03f, f->z, 1.1f, 0.02f, 1.1f, RGB(20, 20, 20));
+    if (f->hit_flash > 0) { body = RGB(255, 255, 255); acc = body; }
+    if (id == 1 || id == 3 || id == 6) eyec = RGB(225, 30, 35);
+    if (id == 5) eyec = RGB(60, 170, 90);
+    if (id == 7) eyec = RGB(170, 150, 220);
+
+    gfx_box(f->x, 0.03f, f->z, 1.3f, 0.02f, 1.3f, RGB(20, 20, 20));
 
     if (f->dead) {
-        gfx_box_rot(f->x, 0.25f, f->z, 0.9f, 0.5f, 1.9f, atan2f(f->fx, f->fz), body);
-        part(f, 0.0f, 0.3f, 1.2f, 0.45f, 0.45f, 0.45f, skin);
+        gfx_box_rot(f->x, 0.28f, f->z, 0.9f, 0.55f, 1.9f, atan2f(f->fx, f->fz), body);
+        part(f, 0.0f, 0.32f, 1.25f, 0.55f, 0.5f, 0.52f, skin);
+        part(f, 0.0f, 0.55f, 1.2f, 0.62f, 0.16f, 0.58f, hair);
         return;
     }
-    if (f->phase_lvl >= 1) part(f, 0.0f, 1.9f, -0.7f, 2.4f, 3.6f, 0.3f, f->def == 6 ? RGB(160, 60, 220) : RGB(90, 110, 255));
+    if (f->phase_lvl >= 1) part(f, 0.0f, 1.9f, -0.7f, 2.4f, 3.6f, 0.3f, id == 6 ? RGB(160, 60, 220) : RGB(90, 110, 255));
     if (f->phase_lvl >= 2) part(f, 0.0f, 4.0f, -0.7f, 1.4f, 0.3f, 0.3f, RGB(255, 255, 255));
 
     if (f->awk > 0) {
@@ -958,10 +1093,10 @@ static void draw_fighter(const Fighter *f)
             float a = frame * 0.1f + i * 1.57f, h = 1.6f + 0.5f * sinf(frame * 0.3f + i);
             gfx_box(f->x + cosf(a) * 0.95f, h * 0.5f, f->z + sinf(a) * 0.95f, 0.15f, h, 0.15f, d->awk_col);
         }
-        if (f->def == 1) part(f, 0.0f, 1.9f, -0.7f, 2.4f, 3.6f, 0.3f, d->awk_col);
-        if (f->def == 3) part(f, 0.0f, 3.4f, -0.5f, 1.6f, 0.3f, 0.3f, d->awk_col);
-        if (f->def == 2) part(f, 0.0f, 1.95f, 0.24f, 0.5f, 0.1f, 0.05f, d->awk_col);
-        if (f->def == 6) part(f, 0.0f, 3.2f, -0.6f, 2.0f, 0.4f, 0.4f, d->awk_col);
+        if (id == 1) part(f, 0.0f, 1.9f, -0.7f, 2.4f, 3.6f, 0.3f, d->awk_col);
+        if (id == 3) part(f, 0.0f, 3.4f, -0.5f, 1.6f, 0.3f, 0.3f, d->awk_col);
+        if (id == 2) part(f, 0.0f, 2.2f, 0.27f, 0.5f, 0.1f, 0.05f, d->awk_col);
+        if (id == 6) part(f, 0.0f, 3.2f, -0.6f, 2.0f, 0.4f, 0.4f, d->awk_col);
     }
     if (f->burn > 0) {
         for (i = 0; i < 3; i++)
@@ -969,33 +1104,60 @@ static void draw_fighter(const Fighter *f)
                     f->z + cosf(frame * 0.5f + i * 2.0f) * 0.35f, 0.3f, 0.3f, 0.3f, RGB(45, 0, 70));
     }
 
-    part(f, -0.22f, 0.45f, sw, 0.30f, 0.9f, 0.30f, acc);
-    part(f,  0.22f, 0.45f, -sw, 0.30f, 0.9f, 0.30f, acc);
-    part(f, 0.0f, 1.3f, 0.0f, 0.8f, 0.8f, 0.4f, body);
-    part(f, 0.0f, 1.95f, 0.0f, 0.45f, 0.45f, 0.45f, skin);
-    part(f, 0.0f, 2.22f, 0.0f, 0.5f, 0.15f, 0.5f, hair);
-    if (f->def == 7) { /* Kaguya horns */
-        part(f, -0.18f, 2.45f, 0.0f, 0.1f, 0.3f, 0.1f, RGB(255, 255, 255));
-        part(f,  0.18f, 2.45f, 0.0f, 0.1f, 0.3f, 0.1f, RGB(255, 255, 255));
+    /* legs, feet (Kaguya wears a long robe instead) */
+    if (id == 7) {
+        part(f, 0.0f, 0.65f, 0.0f, 1.0f, 1.3f, 0.7f, body);
+        part(f, 0.0f, 0.2f, 0.0f, 1.1f, 0.2f, 0.8f, acc);
+    } else {
+        part(f, -0.20f, 0.52f, sw, 0.30f, 0.78f, 0.32f, acc);
+        part(f,  0.20f, 0.52f, -sw, 0.30f, 0.78f, 0.32f, acc);
+        part(f, -0.20f, 0.10f, sw + 0.06f, 0.30f, 0.18f, 0.46f, dark);
+        part(f,  0.20f, 0.10f, -sw + 0.06f, 0.30f, 0.18f, 0.46f, dark);
     }
+    /* belt, torso, collar/neck */
+    part(f, 0.0f, 1.02f, 0.0f, 0.80f, 0.16f, 0.46f, belt);
+    part(f, 0.0f, 1.42f, 0.0f, 0.80f, 0.72f, 0.44f, body);
+    part(f, 0.0f, 1.62f, 0.23f, 0.52f, 0.14f, 0.04f, acc);
+    part(f, 0.0f, 1.82f, 0.0f, 0.22f, 0.14f, 0.22f, skin);
+    /* shoulders */
+    part(f, -0.52f, 1.68f, 0.0f, 0.28f, 0.26f, 0.34f, body);
+    part(f,  0.52f, 1.68f, 0.0f, 0.28f, 0.26f, 0.34f, body);
 
+    /* head: face, eyes, hair cap */
+    part(f, 0.0f, 2.12f, 0.0f, 0.58f, 0.56f, 0.54f, skin);
+    if (id != 6) {
+        part(f, -0.14f, 2.14f, 0.28f, 0.10f, 0.10f, 0.03f, id == 4 ? skin : eyec);
+        part(f,  0.14f, 2.14f, 0.28f, 0.10f, 0.10f, 0.03f, eyec);
+    }
+    part(f, 0.0f, 2.46f, -0.02f, 0.64f, 0.20f, 0.60f, hair);
+
+    draw_details(f, hair, dark);
+
+    /* arms */
     if ((f->state == FS_ATTACK && f->timer >= 3 && f->timer <= 9) ||
         (mv && (mv->type == MV_DASH || mv->type == MV_SLASH) && f->timer >= 4 && f->timer <= 16)) {
-        part(f, -0.5f, 1.4f, 0.7f, 0.22f, 0.22f, 1.1f, skin);
-        part(f,  0.5f, 1.2f, 0.1f, 0.2f, 0.7f, 0.2f, skin);
+        part(f, -0.50f, 1.50f, 0.70f, 0.22f, 0.22f, 1.10f, body);
+        part(f, -0.50f, 1.50f, 1.32f, 0.28f, 0.28f, 0.28f, skin);
+        part(f,  0.52f, 1.30f, 0.10f, 0.22f, 0.60f, 0.24f, body);
+        part(f,  0.52f, 0.95f, 0.10f, 0.20f, 0.20f, 0.20f, skin);
     } else if (f->guarding) {
-        part(f, -0.15f, 1.5f, 0.45f, 0.5f, 0.2f, 0.2f, skin);
-        part(f,  0.15f, 1.35f, 0.45f, 0.5f, 0.2f, 0.2f, skin);
+        part(f, -0.15f, 1.58f, 0.45f, 0.58f, 0.22f, 0.22f, body);
+        part(f,  0.15f, 1.40f, 0.45f, 0.58f, 0.22f, 0.22f, body);
+        part(f, -0.50f, 1.58f, 0.45f, 0.24f, 0.24f, 0.24f, skin);
+        part(f,  0.50f, 1.40f, 0.45f, 0.24f, 0.24f, 0.24f, skin);
     } else {
-        part(f, -0.55f, 1.3f, -sw * 0.5f, 0.2f, 0.7f, 0.2f, skin);
-        part(f,  0.55f, 1.3f,  sw * 0.5f, 0.2f, 0.7f, 0.2f, skin);
+        part(f, -0.56f, 1.38f, -sw * 0.5f, 0.22f, 0.60f, 0.26f, body);
+        part(f,  0.56f, 1.38f,  sw * 0.5f, 0.22f, 0.60f, 0.26f, body);
+        part(f, -0.56f, 1.00f, -sw * 0.5f, 0.20f, 0.20f, 0.20f, skin);
+        part(f,  0.56f, 1.00f,  sw * 0.5f, 0.20f, 0.20f, 0.20f, skin);
     }
 
     if (mv) {
         int t = f->timer;
         switch (mv->type) {
         case MV_DASH:
-            part(f, -0.5f, 1.4f, 1.5f, 0.5f, 0.5f, 0.5f, d->orb);
+            part(f, -0.5f, 1.5f, 1.6f, 0.5f, 0.5f, 0.5f, d->orb);
+            part(f, -0.5f, 1.5f, 1.6f, 0.7f, 0.2f, 0.2f, RGB(255, 255, 255));
             break;
         case MV_SLASH:
             if (t >= 6 && t <= 14) part(f, 0.0f, 1.6f, 2.2f, 0.4f, 2.6f, 3.4f, d->orb);
@@ -1118,24 +1280,79 @@ static void draw_ult_fx(const Fighter *c, const Fighter *o)
     }
 }
 
-static void draw_arena(int style)
+/* ---------------- rendering: arenas ---------------- */
+static unsigned dim(unsigned c, int num)
 {
+    return RGB(((c & 255) * num) / 100, (((c >> 8) & 255) * num) / 100, (((c >> 16) & 255) * num) / 100);
+}
+
+static void draw_statue(float x, float dir, unsigned c)
+{
+    gfx_box(x, 1.0f, 0.0f, 7.0f, 2.0f, 7.0f, dim(c, 70));
+    gfx_box(x, 6.5f, 0.0f, 4.0f, 9.0f, 3.0f, c);
+    gfx_box(x, 12.8f, 0.0f, 2.6f, 2.8f, 2.6f, c);
+    gfx_box(x, 14.4f, 0.0f, 3.0f, 0.5f, 3.0f, dim(c, 85));
+    gfx_box(x, 8.0f, 2.6f, 1.3f, 6.0f, 1.3f, c);
+    gfx_box(x, 8.0f, -2.6f, 1.3f, 6.0f, 1.3f, c);
+    gfx_box(x + dir * 1.6f, 10.0f, 0.0f, 1.2f, 1.0f, 1.0f, c);
+}
+
+static void draw_arena(int style, float cx, float cz)
+{
+    static const unsigned ca[NUM_ARENAS] = { RGB(105, 130, 100), RGB(160, 138, 105), RGB(125, 125, 138), RGB(90, 62, 125) };
+    static const unsigned cb[NUM_ARENAS] = { RGB(85, 108, 82), RGB(132, 112, 86), RGB(98, 98, 112), RGB(58, 40, 90) };
+    static const unsigned cp[NUM_ARENAS] = { RGB(125, 125, 135), RGB(115, 104, 92), RGB(75, 75, 90), RGB(215, 215, 240) };
+    static const unsigned bd[NUM_ARENAS] = { RGB(60, 72, 60), RGB(95, 78, 56), RGB(72, 72, 88), RGB(150, 150, 195) };
+    static const unsigned gd[NUM_ARENAS] = { RGB(55, 88, 55), RGB(125, 98, 72), RGB(70, 66, 86), RGB(30, 15, 50) };
+    static const unsigned mt[NUM_ARENAS] = { RGB(75, 105, 95), RGB(130, 92, 82), RGB(62, 56, 84), RGB(48, 22, 78) };
     int i, j;
-    static const unsigned ca[NUM_ARENAS] = { RGB(95, 120, 95), RGB(150, 130, 100), RGB(120, 120, 130), RGB(80, 55, 115) };
-    static const unsigned cb[NUM_ARENAS] = { RGB(80, 102, 80), RGB(125, 108, 84), RGB(95, 95, 108), RGB(55, 38, 85) };
-    static const unsigned cp[NUM_ARENAS] = { RGB(120, 120, 130), RGB(110, 100, 90), RGB(70, 70, 85), RGB(210, 210, 235) };
+
     if (style < 0 || style >= NUM_ARENAS) style = 0;
-    gfx_box(0, -0.2f, 0, 26.0f, 0.4f, 26.0f, RGB(50, 50, 55));
+    gfx_box(0, -0.4f, 0, 130.0f, 0.5f, 130.0f, gd[style]);
+    gfx_box(0, -0.12f, 0, 23.6f, 0.3f, 23.6f, bd[style]);
     for (i = -3; i <= 3; i++)
         for (j = -3; j <= 3; j++)
-            gfx_box(i * 3.2f, 0.01f, j * 3.2f, 3.1f, 0.02f, 3.1f, ((i + j) & 1) ? ca[style] : cb[style]);
+            gfx_box(i * 3.2f, 0.02f, j * 3.2f, 3.1f, 0.04f, 3.1f, ((i + j) & 1) ? ca[style] : cb[style]);
+
     for (i = 0; i < 16; i++) {
         float ang = i * 0.3927f, h = 2.0f + (i % 3) * 1.2f;
+        float px = cosf(ang) * 11.8f, pz = sinf(ang) * 11.8f;
         if (style == 3) h += 2.5f * (float)(i & 1);
-        gfx_box(cosf(ang) * 11.8f, h * 0.5f, sinf(ang) * 11.8f, 0.9f, h, 0.9f, cp[style]);
+        if (dist_xz(px, pz, cx, cz) < 5.5f) continue; /* never let a pillar block the view */
+        gfx_box(px, h * 0.5f, pz, 0.9f, h, 0.9f, cp[style]);
+    }
+    for (i = 0; i < 12; i++) {
+        float ang = i * 0.5236f + 0.2f, h = 9.0f + (float)((i * 7) % 5) * 4.0f;
+        gfx_box(cosf(ang) * 62.0f, h * 0.5f, sinf(ang) * 62.0f, 20.0f, h, 20.0f, mt[style]);
+    }
+    if (style == 1 || style == 2) {
+        draw_statue(-32.0f, 1.0f, style == 1 ? RGB(150, 138, 118) : RGB(110, 108, 124));
+        draw_statue(32.0f, -1.0f, style == 1 ? RGB(150, 138, 118) : RGB(110, 108, 124));
+    }
+    if (style == 0) {
+        for (i = 0; i < 8; i++) {
+            float ang = i * 0.7854f + 0.4f, tx = cosf(ang) * 18.0f, tz = sinf(ang) * 18.0f;
+            gfx_box(tx, 1.6f, tz, 0.9f, 3.2f, 0.9f, RGB(95, 65, 40));
+            gfx_box(tx, 4.6f, tz, 4.2f, 3.0f, 4.2f, RGB(55, 135, 65));
+            gfx_box(tx, 6.6f, tz, 2.6f, 1.6f, 2.6f, RGB(70, 155, 80));
+        }
+    }
+    if (style == 3) {
+        for (i = 0; i < 10; i++) {
+            float ang = i * 0.6283f, r = 20.0f, h = 6.0f + (float)((i * 5) % 4) * 3.0f;
+            float bob = sinf(frame * 0.03f + i) * 0.8f;
+            gfx_box(cosf(ang) * r, h + bob, sinf(ang) * r, 1.6f, 2.6f, 1.6f, RGB(230, 230, 250));
+        }
     }
 }
 
+static void draw_sky(int style)
+{
+    gfx_2d();
+    gfx_gradient(0, 0, 480, 272, sky_top[style], sky_bot[style]);
+}
+
+/* ---------------- rendering: HUD ---------------- */
 static void draw_bar(float x, float y, float w, float h, float ratio, unsigned col, int rtl)
 {
     float fw;
@@ -1191,14 +1408,14 @@ static void draw_hud(void)
         const Move *m = &pd->jut[k];
         int ready = (pl.chakra >= (float)m->cost && pl.jcd[k] == 0);
         sprintf(buf, "%s%s", pre[k], m->name);
-        gfx_text(x, 234, 1, ready ? RGB(255, 255, 255) : RGB(120, 120, 120), buf);
+        gfx_text(x, 234, 1, ready ? RGB(255, 255, 255) : RGB(150, 150, 150), buf);
         x += gfx_text_width(buf, 1) + 10;
     }
     if (pl.supm >= 100.0f && (pl.sup[0] >= 0 || pl.sup[1] >= 0))
         gfx_text(10, 222, 1, RGB(120, 255, 150), "SUPPORT READY: L + SQUARE");
     if (pl.chakra >= 100.0f) gfx_text(10, 246, 1, RGB(255, 220, 60), "ULTIMATE READY: HOLD TRIANGLE + CIRCLE");
     else if (pl.awm >= 100.0f && pd->has_awk && pl.awk == 0) gfx_text(10, 246, 1, RGB(255, 200, 40), "AWAKENING READY: L + R + TRIANGLE");
-    gfx_text(10, 262, 1, RGB(200, 200, 200), "O:ATK  X:JUMP  L:GUARD  R:DODGE  TRI:CHARGE  START:PAUSE");
+    gfx_text(10, 262, 1, RGB(210, 210, 210), "O:ATK  X:JUMP  L:GUARD  R:DODGE  TRI:CHARGE  START:PAUSE");
 
     if (c || cine_timer > 0) {
         gfx_rect(0, 0, 480, 26, RGB(0, 0, 0));
@@ -1228,9 +1445,11 @@ static void draw_battle(void)
 {
     int i;
     Fighter *c = ult_caster();
+    draw_sky(cur_arena);
     gfx_3d();
-    gfx_camera(camx, camy, camz, tgx, tgy, tgz);
-    draw_arena(cur_arena);
+    gfx_camera(camx + sinf(frame * 1.7f) * shake, camy + cosf(frame * 2.3f) * shake, camz,
+               tgx, tgy, tgz);
+    draw_arena(cur_arena, camx, camz);
     draw_fighter(&pl);
     draw_fighter(&en);
     draw_support(&pl);
@@ -1241,6 +1460,11 @@ static void draw_battle(void)
             Proj *p = &projs[i];
             gfx_box(p->x, p->y, p->z, p->size + 0.2f, p->size + 0.2f, p->size + 0.2f, p->col);
             gfx_box(p->x - p->vx * 2.0f, p->y, p->z - p->vz * 2.0f, p->size * 0.6f, p->size * 0.6f, p->size * 0.6f, p->col);
+        }
+    for (i = 0; i < MAXPART; i++)
+        if (parts[i].life > 0) {
+            float s = 0.10f + parts[i].life * 0.005f;
+            gfx_box(parts[i].x, parts[i].y, parts[i].z, s, s, s, parts[i].col);
         }
     draw_hud();
 }
@@ -1361,9 +1585,11 @@ int main(void)
         switch (gstate) {
         case GS_MENU:
             gfx_begin(RGB(15, 20, 50));
+            gfx_2d();
+            gfx_gradient(0, 0, 480, 272, RGB(10, 10, 45), RGB(95, 50, 100));
             gfx_3d();
             gfx_camera(0.0f, 2.2f, 6.0f, 0.0f, 1.3f, 0.0f);
-            gfx_box(3.5f, -0.05f, 0, 5.0f, 0.1f, 5.0f, RGB(60, 70, 90));
+            gfx_box(3.5f, -0.05f, 0, 5.0f, 0.1f, 5.0f, RGB(70, 80, 110));
             draw_preview((int)(frame / 120) % NUM_CHARS, menu_angle, 3.5f);
             gfx_2d();
             gfx_text(16, 24, 4, RGB(255, 160, 30), "NARUTO STORM 4");
@@ -1373,7 +1599,7 @@ int main(void)
                 sprintf(buf, "%s%s", i == menu_sel ? "> " : "  ", items[i]);
                 gfx_text(30, 110.0f + i * 30, 3, i == menu_sel ? RGB(255, 220, 60) : RGB(200, 200, 200), buf);
             }
-            gfx_text(10, 255, 1, RGB(160, 160, 160), "UP/DOWN: SELECT   CROSS: CONFIRM   PROTOTYPE - PLACEHOLDER MODELS");
+            gfx_text(10, 255, 1, RGB(170, 170, 170), "UP/DOWN: SELECT   CROSS: CONFIRM   PROTOTYPE");
             gfx_end();
             break;
         case GS_SELECT: {
@@ -1381,9 +1607,11 @@ int main(void)
             const Def *sd = &roster[select_idx];
             int unlocked = (int)((chars_unlocked() >> select_idx) & 1u);
             gfx_begin(RGB(25, 30, 60));
+            gfx_2d();
+            gfx_gradient(0, 0, 480, 272, RGB(20, 25, 60), RGB(70, 55, 100));
             gfx_3d();
-            gfx_camera(0.0f, 2.0f, 5.5f, 0.0f, 1.2f, 0.0f);
-            gfx_box(0, -0.05f, 0, 5.0f, 0.1f, 5.0f, RGB(70, 80, 100));
+            gfx_camera(0.0f, 2.0f, 5.5f, 0.0f, 1.3f, 0.0f);
+            gfx_box(0, -0.05f, 0, 5.0f, 0.1f, 5.0f, RGB(80, 90, 120));
             draw_preview(select_idx, menu_angle, 0.0f);
             gfx_2d();
             gfx_text(240 - gfx_text_width(select_mode ? "CHARACTERS" : "SELECT FIGHTER", 2) / 2, 8, 2, RGB(255, 255, 255),
@@ -1407,7 +1635,7 @@ int main(void)
                 gfx_text(240 - gfx_text_width(buf, 1) / 2, 240, 1, RGB(255, 160, 80), buf);
             }
             if (note_t > 0) gfx_text(240 - gfx_text_width(note, 1) / 2, 250, 1, RGB(255, 120, 120), note);
-            gfx_text(10, 262, 1, RGB(160, 160, 160), select_mode ? "LEFT/RIGHT: BROWSE   CIRCLE: BACK" : "LEFT/RIGHT: CHOOSE   CROSS: FIGHT   CIRCLE: BACK");
+            gfx_text(10, 262, 1, RGB(170, 170, 170), select_mode ? "LEFT/RIGHT: BROWSE   CIRCLE: BACK" : "LEFT/RIGHT: CHOOSE   CROSS: FIGHT   CIRCLE: BACK");
             gfx_end();
         } break;
         case GS_STORY: {
@@ -1415,13 +1643,14 @@ int main(void)
             int mi = row_mission[story_row];
             gfx_begin(RGB(25, 18, 30));
             gfx_2d();
+            gfx_gradient(0, 0, 480, 272, RGB(20, 15, 40), RGB(70, 35, 60));
             gfx_text(16, 10, 3, RGB(255, 160, 30), "STORY MODE");
             for (i = 0; i < NUM_ROWS; i++) {
                 int m2 = row_mission[i];
                 const char *st;
                 unsigned col;
                 if (m2 < 0) { st = "SOON"; col = RGB(110, 110, 110); }
-                else if (!mission_open(m2)) { st = "LOCKED"; col = RGB(150, 90, 90); }
+                else if (!mission_open(m2)) { st = "LOCKED"; col = RGB(170, 100, 100); }
                 else if ((sv.completed >> m2) & 1u) { st = "CLEARED"; col = RGB(110, 220, 120); }
                 else { st = "NEW"; col = RGB(255, 220, 60); }
                 sprintf(buf, "%s%s", i == story_row ? "> " : "  ", row_title[i]);
@@ -1445,7 +1674,7 @@ int main(void)
                 }
             }
             if (note_t > 0) gfx_text(14, 240, 1, RGB(255, 120, 120), note);
-            gfx_text(10, 262, 1, RGB(160, 160, 160), "CROSS: PLAY   SQUARE: ERASE PROGRESS   CIRCLE: BACK");
+            gfx_text(10, 262, 1, RGB(170, 170, 170), "CROSS: PLAY   SQUARE: ERASE PROGRESS   CIRCLE: BACK");
             gfx_end();
         } break;
         case GS_DIALOGUE: {
@@ -1455,10 +1684,11 @@ int main(void)
             char buf[160];
             int len = (int)strlen(cl->txt), shown = dlg_chars < len ? dlg_chars : len;
             Fighter a, b;
-            gfx_begin(arena_sky[m->arena]);
+            gfx_begin(sky_bot[m->arena]);
+            draw_sky(m->arena);
             gfx_3d();
             gfx_camera(0.0f, 1.9f, 6.5f, 0.0f, 1.5f, 0.0f);
-            draw_arena(m->arena);
+            draw_arena(m->arena, 999.0f, 999.0f);
             memset(&a, 0, sizeof(a)); memset(&b, 0, sizeof(b));
             a.def = m->pdef; a.x = -1.8f; a.fx = 1.0f; a.fz = 0.0f;
             b.def = m->edef; b.x = 1.8f;  b.fx = -1.0f; b.fz = 0.0f;
@@ -1476,13 +1706,14 @@ int main(void)
             gfx_end();
         } break;
         case GS_BATTLE:
-            gfx_begin(arena_sky[cur_arena]);
+            gfx_begin(sky_bot[cur_arena]);
             draw_battle();
             gfx_end();
             break;
         case GS_RESULT:
             gfx_begin(RGB(15, 15, 25));
             gfx_2d();
+            gfx_gradient(0, 0, 480, 272, RGB(10, 10, 20), RGB(50, 30, 50));
             {
                 static const char *story_opts[3] = { "RETRY", "MISSION LIST", "MAIN MENU" };
                 static const char *free_opts[2] = { "RETRY", "MAIN MENU" };
@@ -1503,6 +1734,7 @@ int main(void)
             int y = 120, j;
             gfx_begin(RGB(15, 25, 20));
             gfx_2d();
+            gfx_gradient(0, 0, 480, 272, RGB(10, 25, 20), RGB(40, 70, 50));
             gfx_text(240 - gfx_text_width("MISSION COMPLETE", 3) / 2, 30, 3, RGB(255, 220, 60), "MISSION COMPLETE");
             gfx_text(240 - gfx_text_width(m->title, 2) / 2, 70, 2, RGB(255, 255, 255), m->title);
             if (m->unlock_char >= 0) {
