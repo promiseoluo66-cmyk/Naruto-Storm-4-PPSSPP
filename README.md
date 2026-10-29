@@ -18,10 +18,12 @@ Unofficial fan project. Uses only original placeholder models; no proprietary as
 | 7 | Optimization, real models, polish | Planned |
 
 ### What exists
-- 8 fighters: Naruto, Sasuke, Hashirama, Madara, Kakashi, Sakura, Obito, Kaguya. Each has 3 distinct jutsu and an Ultimate; Naruto, Sasuke, Hashirama, Madara and Obito also have an Awakening.
+- 16 fighters: Naruto, Sasuke, Hashirama, Madara, Kakashi, Sakura, Obito, Kaguya, Minato, Itachi, Pain, Gaara, Might Guy, Jiraiya, Orochimaru and Killer Bee. Each has 3 named jutsu and an Ultimate; several fighters have an Awakening.
 - 13 move types (dash strike, clone barrage, projectile, spread, homing, ninken barrage, telegraphed ground strike, wide slash, area push, teleport strike, heal, burn, Kamui phase).
 - Ultimates with cinematic camera and per-character effects.
-- Support characters: L + Square calls a partner (homing strike) when the green support bar is full. Story missions assign partners (Team 7 rotates two).
+- Support characters: L + Square calls a partner strike when the green support bar is full. Free Battle assigns up to two support partners.
+- Team Ultimate: L + Circle triggers a coordinated three-character attack when support is full and at least 70 chakra is available. It uses three staged hits and a short cinematic camera/effect sequence.
+- Combo Jutsu: press Square during a second-or-later melee hit to cancel the combo into the selected character's jutsu.
 - Boss phases defined per mission; each triggers a short transformation cinematic and powers the boss up.
 - 4 arenas, free battle with random arena and support partners.
 - Story Mode: chapter list, typewriter dialogue, unlock chain, save/load.
@@ -43,8 +45,9 @@ Unlock order: Ch1 -> Ch2 -> Ch3 -> Ch4 -> Ch5 -> Ch6. All missions are simplifie
 |---|---|
 | Analog / D-pad | Move (relative to opponent) |
 | Circle | Attack (tap to chain 4-hit combo) |
-| Square | Jutsu 1; D-pad Up + Square = Jutsu 2; D-pad Down + Square = Jutsu 3 |
+| Square | Jutsu 1; D-pad Up + Square = Jutsu 2; D-pad Down + Square = Jutsu 3; press during a combo to combo-cancel into jutsu |
 | L + Square | Support partner strike (needs full support bar) |
+| L + Circle | Team Ultimate (full support bar + 70 chakra; may be triggered during a combo) |
 | Triangle (hold) | Charge chakra |
 | Triangle + Cross | Chakra dash toward the locked-on opponent (15 chakra); a hit can start a combo |
 | L + R together while in hit-stun | Substitution Jutsu (10 chakra; escapes hit-stun) |
@@ -57,9 +60,10 @@ Unlock order: Ch1 -> Ch2 -> Ch3 -> Ch4 -> Ch5 -> Ch6. All missions are simplifie
 
 ## Storm-style combat pass (prototype)
 - Added a homing chakra dash with a dash-hit that can start a melee combo.
+- Expanded the selectable roster from 8 to 16, adding Minato, Itachi, Pain, Gaara, Might Guy, Jiraiya, Orochimaru and Killer Bee, each with separate jutsu/ultimate data and extra silhouette details.
 - Added a substitution escape during hit-stun, costing 10 chakra and granting brief invulnerability.
 - R-trigger alone remains an evasive ninja move.
-- This is inspired by the original game's combat rhythm, not an exact recreation; character animations, advanced combo routes, support switching and full original move timing still need work.
+- This is inspired by the original game's combat rhythm, not an exact recreation; character animations, advanced combo routes, support switching and exact original move timing still need work. The newly added Team Ultimate is an original implementation inspired by the game's team attacks, not a frame-accurate recreation.
 
 ## Save data
 Progress is written to `ms0:/PSP/SAVEDATA/NARUTOSTORM4/save.bin` (small file with checksum). If that path is not writable, the mission-complete screen says so. Story menu: Square twice erases progress.
@@ -75,5 +79,5 @@ Download it from the Actions run artifacts, then place it in `PSP/GAME/NarutoSto
 
 ## Known limitations
 - Placeholder box models, no real animation, no audio, text-only dialogue.
-- Roster is 8 of 100+ Storm 4 characters.
+- Roster is currently 16 of the 100+ Storm 4 character variants; this is an initial expansion, not the full roster.
 - Balance, AI difficulty and performance (30 FPS target) unverified on a device.
