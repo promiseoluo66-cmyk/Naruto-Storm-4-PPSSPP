@@ -75,13 +75,16 @@ for x in (-1,1):
 box(0,1.57,-0.22,0.42,0.22,0.08,DARK)
 
 def write_obj(path):
-    lines=["# Original Naruto-inspired low-poly character; generated, not ripped.","o original_ninja","vt 0 0","vt 1 0","vt 1 1","vt 0 1"]
+    # Target reference height: 1.66 m (Shippuden-era Naruto).
+    # The source mesh spans 2.76 model units, so scale it to 1.66 units.
+    height_scale = 1.66 / 2.76
+    lines=["# Original Naruto-inspired low-poly character; target height 1.66m reference; generated, not ripped.","o original_ninja","vt 0 0","vt 1 0","vt 1 1","vt 0 1"]
     faces=[]; vi=1
     for quads,col in parts:
         for quad in quads:
             ids=[]
             for x,y,z in quad:
-                lines.append("v %.4f %.4f %.4f %.3f %.3f %.3f"%(x,y,z,*col)); ids.append(vi); vi+=1
+                lines.append("v %.4f %.4f %.4f %.3f %.3f %.3f"%(x*height_scale,y*height_scale,z*height_scale,*col)); ids.append(vi); vi+=1
             if quad[2]==quad[3]: faces.append("f %d/1 %d/2 %d/3"%tuple(ids[:3]))
             else: faces.append("f %d/1 %d/2 %d/3 %d/4"%tuple(ids))
     with open(path,"w") as f: f.write("\n".join(lines+faces)+"\n")
