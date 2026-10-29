@@ -12,7 +12,8 @@
 #define NMDL_MAX_VERTICES 120000
 #define NMTX_MAX_DIMENSION 512
 #define NMTX_MIN_DIMENSION 8
-#define NMTX_FORMAT_RGB565 1\n#define NMTX_FORMAT_RGBA8888 3
+#define NMTX_FORMAT_RGB565 1
+#define NMTX_FORMAT_RGBA8888 3
 
 typedef struct {
     char magic[4];
@@ -119,7 +120,7 @@ int model_texture_load(ModelTexture *texture, const char *path)
 
     if (!texture || !path) return -1;
     texture->pixels = NULL;
-    texture->width = texture->height = 0;
+    texture->width = texture->height = texture->format = 0;
 
     fd = sceIoOpen(path, PSP_O_RDONLY, 0);
     if (fd < 0) return -2;
@@ -129,14 +130,15 @@ int model_texture_load(ModelTexture *texture, const char *path)
     }
     if (memcmp(header.magic, "NMTX", 4) != 0 ||
         header.version != NMTX_VERSION ||
-        header.format != NMTX_FORMAT_RGBA8888 ||
+        (header.format != NMTX_FORMAT_RGB565 && header.format != NMTX_FORMAT_RGBA8888) ||
         !is_power_of_two(header.width) ||
         !is_power_of_two(header.height)) {
         sceIoClose(fd);
         return -4;
     }
 
-    bytes = header.width * header.height * (header.format == NMTX_FORMAT_RGB565 ? 2u : 4u);
+    bytes = header.width * header.height *
+            (header.format == NMTX_FORMAT_RGB565 ? 2u : 4u);
     texture->pixels = memalign(16, bytes);
     if (!texture->pixels) {
         sceIoClose(fd);
@@ -152,6 +154,7 @@ int model_texture_load(ModelTexture *texture, const char *path)
 
     texture->width = header.width;
     texture->height = header.height;
+    texture->format = header.format;
     sceKernelDcacheWritebackInvalidateRange(texture->pixels, bytes);
     return 0;
 }
@@ -182,7 +185,6 @@ static void draw_internal(const Model *model, const ModelTexture *texture,
                           float x, float y, float z, float yaw, int textured)
 {
     ScePspFVector3 position;
-    /* UVs stay in the vertex stream even when texturing is disabled. */
     unsigned int format = GU_TEXTURE_32BITF | GU_COLOR_8888 |
                           GU_VERTEX_32BITF | GU_TRANSFORM_3D;
 
@@ -231,5 +233,5 @@ void model_texture_free(ModelTexture *texture)
     if (!texture) return;
     if (texture->pixels) free(texture->pixels);
     texture->pixels = NULL;
-    texture->width = texture->height = 0;
+    texture->width = texture->height = texture->format = 0;
 }
