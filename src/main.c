@@ -1949,6 +1949,8 @@ int main(void)
         case GS_SELECT:
             if (pressed & PSP_CTRL_LEFT)  select_idx = (select_idx + NUM_CHARS - 1) % NUM_CHARS;
             if (pressed & PSP_CTRL_RIGHT) select_idx = (select_idx + 1) % NUM_CHARS;
+            if (pressed & PSP_CTRL_UP)    select_idx = (select_idx + NUM_CHARS - 6) % NUM_CHARS;
+            if (pressed & PSP_CTRL_DOWN)  select_idx = (select_idx + 6) % NUM_CHARS;
             if (pressed & PSP_CTRL_CIRCLE) gstate = GS_MENU;
             if ((pressed & PSP_CTRL_CROSS) && !select_mode) {
                 if (character_unlocked(select_idx)) start_free_battle(select_idx);
@@ -2010,59 +2012,118 @@ int main(void)
 
         /* ---- render ---- */
         switch (gstate) {
-        case GS_MENU:
-            gfx_begin(RGB(15, 20, 50));
+        case GS_MENU: {
+            static const char *descs[4] = {
+                "FOLLOW THE SHINOBI STORY",
+                "CHOOSE YOUR FIGHTER AND BATTLE",
+                "VIEW THE AVAILABLE FIGHTERS",
+                "RETURN TO PPSSPP"
+            };
+            unsigned pulse = (unsigned)(35 + (sinf(frame * 0.08f) + 1.0f) * 20.0f);
+            gfx_begin(RGB(8, 10, 28));
             gfx_2d();
-            gfx_gradient(0, 0, 480, 272, RGB(10, 10, 45), RGB(95, 50, 100));
-            gfx_3d();
-            gfx_camera(0.0f, 2.2f, 6.0f, 0.0f, 1.3f, 0.0f);
-            gfx_box(3.5f, -0.05f, 0, 5.0f, 0.1f, 5.0f, RGB(70, 80, 110));
-            draw_preview((int)(frame / 120) % NUM_CHARS, menu_angle, 3.5f);
-            gfx_2d();
-            gfx_text(16, 24, 4, RGB(255, 160, 30), "NARUTO STORM 4");
-            gfx_text(18, 64, 2, RGB(255, 255, 255), "PPSSPP EDITION");
-            for (i = 0; i < 4; i++) {
-                char buf[32];
-                sprintf(buf, "%s%s", i == menu_sel ? "> " : "  ", items[i]);
-                gfx_text(30, 110.0f + i * 30, 3, i == menu_sel ? RGB(255, 220, 60) : RGB(200, 200, 200), buf);
+            gfx_gradient(0, 0, 480, 272, RGB(7, 10, 34), RGB(37, 20, 64));
+            /* Animated background slashes and framed panels. */
+            for (i = 0; i < 8; i++) {
+                float x = (float)((i * 83 + (int)(frame * 0.45f)) % 540) - 60.0f;
+                gfx_rect(x, 0, 1.0f, 272, RGBA(95, 115, 190, 24));
             }
-            gfx_text(10, 255, 1, RGB(170, 170, 170), "UP/DOWN: SELECT   CROSS: CONFIRM   PROTOTYPE");
+            gfx_rect(8, 8, 464, 256, RGBA(4, 7, 22, 130));
+            gfx_rect(8, 8, 3, 256, RGB(255, 145, 35));
+            gfx_rect(15, 15, 450, 1, RGBA(255, 255, 255, 100));
+            gfx_rect(15, 256, 450, 1, RGBA(255, 255, 255, 70));
+            gfx_3d();
+            gfx_camera(2.5f, 2.5f, 7.0f, 2.5f, 1.2f, 0.0f);
+            gfx_box(2.5f, -0.05f, 0, 5.4f, 0.1f, 5.4f, RGB(46, 55, 90));
+            draw_preview((int)(frame / 180) % 8, menu_angle, 2.5f);
+            gfx_2d();
+            gfx_text(24, 20, 3, RGB(255, 155, 35), "NARUTO");
+            gfx_text(24, 43, 3, RGB(255, 255, 255), "STORM");
+            gfx_text(24, 66, 3, RGB(255, 220, 85), "SHINOBI ARENA");
+            gfx_rect(24, 94, 176, 2, RGB(255, 145, 35));
+            gfx_text(24, 103, 1, RGB(170, 195, 255), "MAIN BATTLE MENU");
+            for (i = 0; i < 4; i++) {
+                float y = 125.0f + i * 27.0f;
+                if (i == menu_sel) {
+                    gfx_rect(20, y - 4, 184, 23, RGBA(255, 135, 30, 215));
+                    gfx_rect(20, y - 4, 4, 23, RGB(255, 235, 155));
+                    gfx_text(31, y + 2, 2, RGB(15, 17, 35), items[i]);
+                } else {
+                    gfx_rect(20, y - 4, 184, 23, RGBA(25, 32, 68, 150));
+                    gfx_text(31, y + 2, 2, RGB(220, 225, 245), items[i]);
+                }
+            }
+            gfx_rect(220, 205, 240, 36, RGBA(4, 7, 20, 205));
+            gfx_text(230, 212, 1, RGB(255, 210, 115), descs[menu_sel]);
+            gfx_text(230, 228, 1, RGB(180, 195, 225), "PSP HOMEbrew FIGHTING PROJECT");
+            gfx_text(18, 264, 1, RGB(185, 195, 220), "UP/DOWN SELECT   CROSS CONFIRM");
+            gfx_text(391, 20, 1, RGB(255, 220, 100), "BUILD 0.2");
+            gfx_rect(455, 42, 2, 24 + (float)pulse * 0.3f, RGB(255, 150, 35));
             gfx_end();
             break;
+        }
         case GS_SELECT: {
             char buf[64];
             const Def *sd = &roster[select_idx];
             int unlocked = character_unlocked(select_idx);
-            gfx_begin(RGB(25, 30, 60));
+            int page_start = (select_idx / 24) * 24;
+            int page_count = NUM_CHARS - page_start;
+            if (page_count > 24) page_count = 24;
+            gfx_begin(RGB(8, 12, 32));
             gfx_2d();
-            gfx_gradient(0, 0, 480, 272, RGB(20, 25, 60), RGB(70, 55, 100));
+            gfx_gradient(0, 0, 480, 272, RGB(8, 13, 38), RGB(36, 20, 60));
+            gfx_rect(0, 0, 480, 30, RGBA(4, 7, 20, 230));
+            gfx_rect(0, 30, 480, 2, RGB(255, 145, 35));
+            gfx_text(12, 8, 2, RGB(255, 220, 100), select_mode ? "FIGHTER DATABASE" : "SELECT YOUR FIGHTER");
+            gfx_text(392, 10, 1, RGB(185, 200, 230), "ROSTER");
+            /* Left roster panel: six columns by four rows, 24 entries per page. */
+            gfx_rect(7, 39, 196, 187, RGBA(4, 7, 22, 215));
+            for (i = 0; i < page_count; i++) {
+                int idx = page_start + i;
+                int col = i % 6, row = i / 6;
+                float x = 12.0f + col * 31.0f;
+                float y = 44.0f + row * 43.0f;
+                unsigned tile = roster[idx].body;
+                int chosen = (idx == select_idx);
+                int open = character_unlocked(idx);
+                gfx_rect(x, y, 27, 37, chosen ? RGB(255, 185, 45) : RGBA(120, 140, 190, 120));
+                gfx_rect(x + 2, y + 2, 23, 33, chosen ? RGB(42, 36, 55) : RGBA(12, 18, 40, 235));
+                /* Original colour-coded silhouette tile until real portraits are integrated. */
+                gfx_rect(x + 8, y + 7, 11, 10, open ? roster[idx].hair : RGB(85, 85, 95));
+                gfx_rect(x + 6, y + 18, 15, 10, open ? tile : RGB(65, 65, 75));
+                gfx_rect(x + 4, y + 30, 19, 3, open ? roster[idx].accent : RGB(85, 65, 70));
+                if (!open) gfx_rect(x + 2, y + 2, 23, 33, RGBA(0, 0, 0, 120));
+                gfx_text(x + 2, y + 38, 1, chosen ? RGB(255, 235, 145) : RGB(190, 200, 225), idx < 99 ? (idx < 10 ? "0" : "") : "");
+                if (chosen) {
+                    gfx_rect(x - 2, y - 2, 31, 2, RGB(255, 245, 180));
+                    gfx_rect(x - 2, y + 37, 31, 2, RGB(255, 245, 180));
+                }
+            }
+            gfx_text(12, 232, 1, RGB(185, 200, 230), "D-PAD: MOVE   L/R: PAGE THROUGH FIGHTERS");
+            gfx_text(12, 245, 1, RGB(255, 220, 100), "CROSS: CONFIRM   CIRCLE: BACK");
+            sprintf(buf, "PAGE %d / %d", page_start / 24 + 1, (NUM_CHARS + 23) / 24);
+            gfx_text(12, 258, 1, RGB(160, 180, 220), buf);
+            /* Right-side fighter preview and information panel. */
+            gfx_rect(211, 39, 262, 187, RGBA(4, 7, 22, 175));
             gfx_3d();
-            gfx_camera(0.0f, 2.0f, 5.5f, 0.0f, 1.3f, 0.0f);
-            gfx_box(0, -0.05f, 0, 5.0f, 0.1f, 5.0f, RGB(80, 90, 120));
-            draw_preview(select_idx, menu_angle, 0.0f);
+            gfx_camera(2.45f, 2.1f, 6.0f, 2.45f, 1.25f, 0.0f);
+            gfx_box(2.45f, -0.05f, 0, 4.5f, 0.1f, 4.5f, RGB(54, 63, 99));
+            draw_preview(select_idx, menu_angle, 2.45f);
             gfx_2d();
-            gfx_text(240 - gfx_text_width(select_mode ? "CHARACTERS" : "SELECT FIGHTER", 2) / 2, 8, 2, RGB(255, 255, 255),
-                     select_mode ? "CHARACTERS" : "SELECT FIGHTER");
-            gfx_text(20, 110, 4, RGB(255, 220, 60), "<");
-            gfx_text(436, 110, 4, RGB(255, 220, 60), ">");
-            gfx_text(240 - gfx_text_width(sd->name, 3) / 2, 150, 3, unlocked ? RGB(255, 255, 255) : RGB(140, 140, 140), sd->name);
+            gfx_text(220, 44, 1, RGB(175, 195, 230), "SELECTED SHINOBI");
+            gfx_text(220, 190, 2, unlocked ? RGB(255, 230, 150) : RGB(255, 100, 100), sd->name);
             if (!unlocked) {
                 sprintf(buf, "LOCKED: %s", unlock_hint[select_idx]);
-                gfx_text(240 - gfx_text_width(buf, 2) / 2, 180, 2, RGB(230, 70, 70), buf);
+                gfx_text(220, 211, 1, RGB(255, 125, 125), buf);
             } else {
                 sprintf(buf, "HP %d", sd->hp);
-                gfx_text(240 - gfx_text_width(buf, 1) / 2, 178, 1, RGB(200, 200, 200), buf);
-                for (i = 0; i < 3; i++) {
-                    sprintf(buf, "JUTSU %d: %s (%d CHAKRA)", i + 1, sd->jut[i].name, sd->jut[i].cost);
-                    gfx_text(240 - gfx_text_width(buf, 1) / 2, 192.0f + i * 11, 1, RGB(120, 200, 255), buf);
-                }
-                sprintf(buf, "ULTIMATE: %s", sd->ult_name);
-                gfx_text(240 - gfx_text_width(buf, 1) / 2, 228, 1, RGB(255, 220, 60), buf);
-                sprintf(buf, "AWAKENING: %s", sd->has_awk ? sd->awk_name : "NONE YET");
-                gfx_text(240 - gfx_text_width(buf, 1) / 2, 240, 1, RGB(255, 160, 80), buf);
+                gfx_text(220, 211, 1, RGB(215, 225, 245), buf);
+                sprintf(buf, "ULT: %s", sd->ult_name);
+                gfx_text(220, 224, 1, RGB(255, 205, 100), buf);
+                sprintf(buf, "AWAKEN: %s", sd->has_awk ? sd->awk_name : "NONE");
+                gfx_text(220, 237, 1, RGB(255, 165, 110), buf);
             }
-            if (note_t > 0) gfx_text(240 - gfx_text_width(note, 1) / 2, 250, 1, RGB(255, 120, 120), note);
-            gfx_text(10, 262, 1, RGB(170, 170, 170), select_mode ? "LEFT/RIGHT: BROWSE   CIRCLE: BACK" : "LEFT/RIGHT: CHOOSE   CROSS: FIGHT   CIRCLE: BACK");
+            if (note_t > 0) gfx_text(220, 251, 1, RGB(255, 120, 120), note);
             gfx_end();
         } break;
         case GS_STORY: {
