@@ -1365,27 +1365,38 @@ static void draw_fighter(const Fighter *f)
         part(f, 0.0f, 0.65f, 0.0f, 1.0f, 1.3f, 0.7f, body);
         part(f, 0.0f, 0.2f, 0.0f, 1.1f, 0.2f, 0.8f, acc);
     } else {
-        part(f, -0.20f, 0.52f, sw, 0.30f, 0.78f, 0.32f, acc);
-        part(f,  0.20f, 0.52f, -sw, 0.30f, 0.78f, 0.32f, acc);
+        gfx_ellipsoid(f->x - 0.20f, 0.53f, f->z + sw * 0.35f, 0.31f, 0.78f, 0.34f, acc);
+        gfx_ellipsoid(f->x + 0.20f, 0.53f, f->z - sw * 0.35f, 0.31f, 0.78f, 0.34f, acc);
         part(f, -0.20f, 0.10f, sw + 0.06f, 0.30f, 0.18f, 0.46f, dark);
         part(f,  0.20f, 0.10f, -sw + 0.06f, 0.30f, 0.18f, 0.46f, dark);
     }
     /* belt, torso, collar/neck */
     part(f, 0.0f, 1.02f, 0.0f, 0.80f, 0.16f, 0.46f, belt);
-    part(f, 0.0f, 1.42f, 0.0f, 0.80f, 0.72f, 0.44f, body);
+    gfx_ellipsoid(f->x, 1.43f, f->z, 0.82f, 0.78f, 0.50f, body);
     part(f, 0.0f, 1.62f, 0.23f, 0.52f, 0.14f, 0.04f, acc);
     part(f, 0.0f, 1.82f, 0.0f, 0.22f, 0.14f, 0.22f, skin);
+    /* layered chest panel and waist trim add an anime-game costume silhouette */
+    part(f, 0.0f, 1.38f, 0.255f, 0.46f, 0.34f, 0.035f, acc);
+    part(f, 0.0f, 1.08f, 0.245f, 0.58f, 0.055f, 0.035f, RGB(205,175,95));
     /* shoulders */
     gfx_ellipsoid(f->x - 0.52f, 1.68f, f->z, 0.36f, 0.32f, 0.40f, body);
     gfx_ellipsoid(f->x + 0.52f, 1.68f, f->z, 0.36f, 0.32f, 0.40f, body);
 
     /* head: face, eyes, hair cap */
-    gfx_ellipsoid(f->x, 2.12f, f->z, 0.62f, 0.62f, 0.58f, skin);
+    gfx_ellipsoid(f->x, 2.12f, f->z, 0.62f, 0.66f, 0.58f, skin);
     if (id != 6) {
-        part(f, -0.14f, 2.14f, 0.28f, 0.10f, 0.10f, 0.03f, id == 4 ? skin : eyec);
-        part(f,  0.14f, 2.14f, 0.28f, 0.10f, 0.10f, 0.03f, eyec);
+        /* brows, eyes and a small nose bridge make faces read better at gameplay distance */
+        part(f, -0.145f, 2.205f, 0.285f, 0.15f, 0.035f, 0.035f, hair);
+        part(f,  0.145f, 2.205f, 0.285f, 0.15f, 0.035f, 0.035f, hair);
+        part(f, -0.14f, 2.14f, 0.292f, 0.105f, 0.065f, 0.035f, id == 4 ? skin : eyec);
+        part(f,  0.14f, 2.14f, 0.292f, 0.105f, 0.065f, 0.035f, eyec);
+        part(f, 0.0f, 2.04f, 0.302f, 0.055f, 0.075f, 0.025f, RGB(220,165,130));
     }
     gfx_ellipsoid(f->x, 2.43f, f->z - 0.02f, 0.70f, 0.30f, 0.64f, hair);
+    /* layered hair locks give the base silhouette more anime-like depth */
+    part(f, -0.23f, 2.58f, 0.02f, 0.17f, 0.34f, 0.18f, hair);
+    part(f,  0.23f, 2.58f, 0.02f, 0.17f, 0.34f, 0.18f, hair);
+    part(f, 0.0f, 2.64f, -0.12f, 0.18f, 0.34f, 0.20f, hair);
 
     draw_details(f, hair, dark);
 
@@ -1402,10 +1413,10 @@ static void draw_fighter(const Fighter *f)
         part(f, -0.50f, 1.58f, 0.45f, 0.24f, 0.24f, 0.24f, skin);
         part(f,  0.50f, 1.40f, 0.45f, 0.24f, 0.24f, 0.24f, skin);
     } else {
-        part(f, -0.56f, 1.38f, -sw * 0.5f, 0.22f, 0.60f, 0.26f, body);
-        part(f,  0.56f, 1.38f,  sw * 0.5f, 0.22f, 0.60f, 0.26f, body);
-        part(f, -0.56f, 1.00f, -sw * 0.5f, 0.20f, 0.20f, 0.20f, skin);
-        part(f,  0.56f, 1.00f,  sw * 0.5f, 0.20f, 0.20f, 0.20f, skin);
+        gfx_ellipsoid(f->x - 0.55f, 1.39f, f->z - sw * 0.25f, 0.27f, 0.58f, 0.30f, body);
+        gfx_ellipsoid(f->x + 0.55f, 1.39f, f->z + sw * 0.25f, 0.27f, 0.58f, 0.30f, body);
+        gfx_ellipsoid(f->x - 0.56f, 1.02f, f->z - sw * 0.25f, 0.22f, 0.22f, 0.22f, skin);
+        gfx_ellipsoid(f->x + 0.56f, 1.02f, f->z + sw * 0.25f, 0.22f, 0.22f, 0.22f, skin);
     }
 
     if (f->state == FS_ATTACK) {
