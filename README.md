@@ -13,26 +13,30 @@ Unofficial fan project. Uses only original placeholder models; no proprietary as
 | 2 | 3D arena combat, lock-on camera, AI | Compiles, untested |
 | 3 | Character jutsu, Ultimates, awakening | Compiles, untested |
 | 4 | Story Mode framework, dialogue, unlocks, save | Compiles, untested |
-| 5-7 | More characters/arenas, support characters, story expansion, optimization | Planned |
+| 5 | Obito + Kaguya, support characters, 4 arenas, boss cinematics, Ch3-5 | Compiles, untested |
+| 6 | Story expansion (multi-stage Ch6, more missions) | Planned |
+| 7 | Optimization, real models, polish | Planned |
 
 ### What exists
-- 6 fighters: Naruto, Sasuke, Hashirama, Madara, Kakashi, Sakura. Each has 3 distinct jutsu, an Ultimate and (4 of them) an Awakening.
-- 12 move types: dash strike, clone barrage, projectile, spread shot, homing, ninken barrage, telegraphed ground strike, wide slash, area push, teleport strike, heal, burn (Amaterasu).
-- Ultimates play a cinematic camera + visual effect. Awakening boosts damage/speed and reduces damage taken for 30 s.
-- Story Mode: chapter list, typewriter dialogue before/after battles, boss phases defined per mission, unlock chain, save/load.
-- Free Battle with random arena (3 arenas), Character collection with lock status.
+- 8 fighters: Naruto, Sasuke, Hashirama, Madara, Kakashi, Sakura, Obito, Kaguya. Each has 3 distinct jutsu and an Ultimate; Naruto, Sasuke, Hashirama, Madara and Obito also have an Awakening.
+- 13 move types (dash strike, clone barrage, projectile, spread, homing, ninken barrage, telegraphed ground strike, wide slash, area push, teleport strike, heal, burn, Kamui phase).
+- Ultimates with cinematic camera and per-character effects.
+- Support characters: L + Square calls a partner (homing strike) when the green support bar is full. Story missions assign partners (Team 7 rotates two).
+- Boss phases defined per mission; each triggers a short transformation cinematic and powers the boss up.
+- 4 arenas, free battle with random arena and support partners.
+- Story Mode: chapter list, typewriter dialogue, unlock chain, save/load.
 
 ### Story missions (data in `missions[]` in `src/main.c`)
 | Chapter | Mission | State |
 |---|---|---|
 | 1 | Hashirama vs Madara (3 phases) | Playable |
 | 2 | Fourth Great Ninja War (Kakashi vs Madara) | Playable - placeholder pairing, not canon |
-| 3 | Obito and the Ten-Tails | Not built (needs Obito) |
-| 4 | Madara Uchiha | Not built |
-| 5 | Kaguya Otsutsuki | Not built (needs Kaguya, Team 7) |
+| 3 | Obito and the Ten-Tails (Naruto, support Sasuke/Kakashi) | Playable - simplified 1v1 |
+| 4 | Madara Uchiha (Sasuke, support Naruto/Sakura) | Playable - simplified 1v1 |
+| 5 | Kaguya Otsutsuki (Naruto, Team 7 support) | Playable - simplified 1v1 |
 | 6 | Naruto vs Sasuke (Valley of the End) | Playable - single battle, not the full multi-phase fight |
 
-Chapters 3-5 and the multi-stage story are not implemented yet. Cutscenes are text-over-3D-scene only.
+Unlock order: Ch1 -> Ch2 -> Ch3 -> Ch4 -> Ch5 -> Ch6. All missions are simplified one-on-one battles; the original game's multi-stage scripted fights, QTEs and cutscenes are NOT implemented. Dialogue is original text, not the game's script.
 
 ## Controls
 | Button | Action |
@@ -40,18 +44,19 @@ Chapters 3-5 and the multi-stage story are not implemented yet. Cutscenes are te
 | Analog / D-pad | Move (relative to opponent) |
 | Circle | Attack (tap to chain 4-hit combo) |
 | Square | Jutsu 1; D-pad Up + Square = Jutsu 2; D-pad Down + Square = Jutsu 3 |
+| L + Square | Support partner strike (needs full support bar) |
 | Triangle (hold) | Charge chakra |
 | Triangle (hold) + Circle at full chakra | Ultimate Jutsu |
 | L + R + Triangle when awakening bar is full | Awakening / transformation |
 | Cross | Jump |
-| L | Guard (combo finisher, jutsu with big stun and Ultimates break guard) |
+| L | Guard (combo finisher, big-stun jutsu and Ultimates break guard) |
 | R | Dodge / substitution (10 chakra) |
 | Start | Pause (Select while paused: quit) |
 
 ## Save data
-Progress is written to `ms0:/PSP/SAVEDATA/NARUTOSTORM4/save.bin` (a small file with a checksum). If PPSSPP's memory stick path is not writable, the mission-complete screen says so. Story menu: Square twice erases progress.
+Progress is written to `ms0:/PSP/SAVEDATA/NARUTOSTORM4/save.bin` (small file with checksum). If that path is not writable, the mission-complete screen says so. Story menu: Square twice erases progress.
 
-Unlocks: Madara after Ch1, Kakashi after Ch2. Naruto, Sasuke, Hashirama, Sakura start unlocked.
+Unlocks: Madara after Ch1, Kakashi after Ch2, Obito after Ch3, Kaguya after Ch5. Naruto, Sasuke, Hashirama, Sakura start unlocked.
 
 ## Build
 Push to `main`; GitHub Actions builds `EBOOT.PBP` with the pspdev toolchain.
@@ -59,3 +64,8 @@ Download it from the Actions run artifacts, then place it in `PSP/GAME/NarutoSto
 
 ## Data files
 `data/characters/*.json` and `data/missions/*.json` document the roster/story design but are **not loaded by the game yet**; the playable data is compiled into `src/main.c`.
+
+## Known limitations
+- Placeholder box models, no real animation, no audio, text-only dialogue.
+- Roster is 8 of 100+ Storm 4 characters.
+- Balance, AI difficulty and performance (30 FPS target) unverified on a device.
