@@ -138,7 +138,7 @@ void gfx_box_rot(float x, float y, float z, float w, float h, float d, float yaw
 /* Rounded low-poly ellipsoid for more natural anime-style character silhouettes. */
 void gfx_ellipsoid(float x, float y, float z, float w, float h, float d, unsigned color)
 {
-    enum { LAT = 6, LON = 10 };
+    enum { LAT = 8, LON = 12 };
     Vtx *v = (Vtx *)sceGuGetMemory(LAT * LON * 6 * sizeof(Vtx));
     static const int tri[6] = { 0, 1, 2, 0, 2, 3 };
     const float pi = 3.14159265358979323846f;
@@ -159,7 +159,7 @@ void gfx_ellipsoid(float x, float y, float z, float w, float h, float d, unsigne
             int k;
             for (k = 0; k < 6; k++) {
                 int q = tri[k];
-                float light = 0.76f + 0.24f * ((py[q] / (h * 0.5f + 0.001f) + 1.0f) * 0.5f);
+                float light = 0.68f + 0.32f * ((py[q] / (h * 0.5f + 0.001f) + 1.0f) * 0.5f);
                 v[n].color = shade(color, light);
                 v[n].x = px[q]; v[n].y = py[q]; v[n].z = pz[q]; n++;
             }
