@@ -1,0 +1,38 @@
+{
+  "character_id": "naruto",
+  "display_name": "Naruto Uzumaki",
+  "roster_entry": true,
+  "selection_behavior": "open_variants",
+  "default_variant_id": "teenage",
+  "variants": [
+    {
+      "id": "teenage",
+      "display_name": "Teenage Naruto",
+      "age_label": "Teenage",
+      "default_costume": "orange-blue",
+      "costumes": [
+        {
+          "id": "orange-blue",
+          "display_name": "Classic Orange and Blue",
+          "asset_path": "assets/chr/naruto/costumes/orange-blue/"
+        }
+      ],
+      "model": "assets/chr/naruto/model/teenage.nmdl",
+      "texture": "assets/chr/naruto/textures/teenage.nmtx",
+      "jutsu": [
+        { "id": "rasengan", "display_name": "Rasengan", "type": "dash" },
+        { "id": "shadow-clones", "display_name": "Shadow Clone Jutsu", "type": "multi" },
+        { "id": "rasenshuriken", "display_name": "Rasenshuriken", "type": "projectile" }
+      ],
+      "ultimate": {
+        "id": "tailed-beast-bomb",
+        "display_name": "Tailed Beast Bomb"
+      },
+      "awakening": {
+        "id": "kurama-mode",
+        "display_name": "Kurama Mode"
+      },
+      "status": "design-only-assets-and-runtime-loading-not-yet-implemented"
+    }
+  ]
+}
