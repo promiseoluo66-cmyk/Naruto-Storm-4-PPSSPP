@@ -12,6 +12,7 @@ void gfx_end(void);
 void gfx_3d(void);
 void gfx_camera(float ex, float ey, float ez, float cx, float cy, float cz);
 void gfx_box(float x, float y, float z, float w, float h, float d, unsigned color);
+void gfx_ellipsoid(float x, float y, float z, float w, float h, float d, unsigned color);
 void gfx_box_rot(float x, float y, float z, float w, float h, float d, float yaw, unsigned color);
 
 /* 2D overlay (screen pixels, 480x272) */
