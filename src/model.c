@@ -12,7 +12,7 @@
 #define NMDL_MAX_VERTICES 120000
 #define NMTX_MAX_DIMENSION 512
 #define NMTX_MIN_DIMENSION 8
-#define NMTX_FORMAT_RGBA8888 3
+#define NMTX_FORMAT_RGB565 1\n#define NMTX_FORMAT_RGBA8888 3
 
 typedef struct {
     char magic[4];
@@ -136,7 +136,7 @@ int model_texture_load(ModelTexture *texture, const char *path)
         return -4;
     }
 
-    bytes = header.width * header.height * 4;
+    bytes = header.width * header.height * (header.format == NMTX_FORMAT_RGB565 ? 2u : 4u);
     texture->pixels = memalign(16, bytes);
     if (!texture->pixels) {
         sceIoClose(fd);
@@ -165,7 +165,7 @@ void model_texture_bind(const ModelTexture *texture)
     }
 
     sceGuEnable(GU_TEXTURE_2D);
-    sceGuTexMode(GU_PSM_8888, 0, 0, GU_FALSE);
+    sceGuTexMode(texture->format == NMTX_FORMAT_RGB565 ? GU_PSM_5650 : GU_PSM_8888, 0, 0, GU_FALSE);
     sceGuTexImage(0, texture->width, texture->height,
                   texture->width, texture->pixels);
     sceGuTexFilter(GU_LINEAR, GU_LINEAR);
