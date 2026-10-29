@@ -1460,6 +1460,90 @@ static void draw_ult_fx(const Fighter *c, const Fighter *o)
             gfx_box(o->x, y, o->z, 4.0f, 4.0f, 4.0f, d->orb);
         }
         break;
+    case 8: /* Minato: yellow-flash teleport streaks */
+        for (int j = 0; j < 3; j++) {
+            float k = (float)(t + j * 8) / 64.0f;
+            if (k > 1.0f) k = 1.0f;
+            gfx_box_rot(c->x + (o->x - c->x) * k, 1.7f + 0.35f * sinf(t * 0.2f + j),
+                        c->z + (o->z - c->z) * k, 0.22f, 0.22f, 1.7f,
+                        atan2f(o->x - c->x, o->z - c->z), RGB(255,220,75));
+        }
+        if (t >= 52 && t < 70) part(o, 0.0f, 1.7f, 0.0f, 2.0f, 2.0f, 2.0f, RGB(255,245,180));
+        break;
+    case 9: /* Itachi: black-flame ring and red Susanoo blade */
+        if (t < 60) {
+            for (int j = 0; j < 5; j++) {
+                float a = (float)j * 1.2566f + t * 0.06f;
+                part(o, cosf(a) * 1.25f, 1.4f + 0.35f * sinf(t * 0.12f + j),
+                     sinf(a) * 1.25f, 0.38f, 0.8f, 0.38f, RGB(35,8,28));
+            }
+        } else if (t < 78) {
+            gfx_box_rot((c->x + o->x) * 0.5f, 1.6f, (c->z + o->z) * 0.5f,
+                        0.28f, 0.28f, dist + 1.5f, atan2f(c->fx, c->fz), RGB(220,40,55));
+        }
+        break;
+    case 10: /* Pain: Planetary Devastation */
+        if (t < 48) {
+            float q = 0.4f + t * 0.06f;
+            gfx_box(o->x, 8.0f - t * 0.045f, o->z, q, q, q, RGB(65,55,75));
+            part(o, 0.0f, 2.4f, 0.0f, q * 0.75f, q * 0.75f, q * 0.75f, RGB(155,145,180));
+        } else if (t < 72) {
+            float q = 1.0f + (t - 48) * 0.18f;
+            gfx_box(o->x, 1.4f, o->z, q, q, q, RGB(100,85,130));
+            part(o, 0.0f, 1.5f, 0.0f, q, q, q, RGB(220,220,240));
+        }
+        break;
+    case 11: /* Gaara: sand mausoleum */
+        if (t < 45) {
+            float h = 0.3f + t * 0.08f;
+            gfx_box(o->x, h * 0.5f, o->z, 1.7f + t * 0.025f, h, 1.7f + t * 0.025f, RGB(165,130,85));
+            part(o, 0.0f, 0.8f + t * 0.025f, 0.0f, 0.9f, 0.9f, 0.9f, RGB(220,190,135));
+        } else if (t < 75) {
+            gfx_box(o->x, 1.6f, o->z, 2.8f, 3.2f, 2.8f, RGB(125,90,55));
+            if ((t & 3) == 0) spawn_fx(o->x, 1.4f, o->z, RGB(210,175,105), 4);
+        }
+        break;
+    case 12: /* Might Guy: red Eight Gates rush */
+        if (t < 60) {
+            float q = 1.1f + 0.04f * (float)(t % 10);
+            part(c, 0.0f, 1.5f, 0.0f, q, 2.9f, q, RGB(230,45,35));
+            gfx_box_rot(c->x + (o->x - c->x) * 0.55f, 1.5f, c->z + (o->z - c->z) * 0.55f,
+                        0.45f, 0.45f, 2.6f, atan2f(c->fx, c->fz), RGB(255,95,45));
+        }
+        if (t >= 60 && t < 78) gfx_box(o->x, 1.5f, o->z, 3.5f, 3.5f, 3.5f, RGB(255,220,180));
+        break;
+    case 13: /* Jiraiya: sage-fire oil blast */
+        if (t < 44) {
+            float q = 0.45f + t * 0.055f;
+            part(c, 0.0f, 2.1f, 0.6f, q, q, q, RGB(255,130,35));
+            gfx_box_rot(c->x + c->fx * (1.0f + t * 0.04f), 1.8f,
+                        c->z + c->fz * (1.0f + t * 0.04f), q, q, q,
+                        atan2f(c->fx, c->fz), RGB(255,200,80));
+        } else if (t < 72) {
+            part(o, 0.0f, 1.7f, 0.0f, 2.0f, 2.4f, 2.0f, RGB(255,110,35));
+            if ((t & 2) == 0) part(o, 0.0f, 2.0f, 0.0f, 1.0f, 1.0f, 1.0f, RGB(255,225,125));
+        }
+        break;
+    case 14: /* Orochimaru: eight-branch white serpent coils */
+        for (int j = 0; j < 6; j++) {
+            float a = (float)j * 1.0472f + t * 0.035f;
+            float rr = 0.9f + (t < 50 ? t * 0.025f : 1.25f);
+            gfx_box_rot(o->x + cosf(a) * rr, 1.1f + 0.45f * sinf(a * 2.0f),
+                        o->z + sinf(a) * rr, 0.55f, 0.45f, 1.2f,
+                        -a, RGB(230,225,240));
+        }
+        break;
+    case 15: /* Killer Bee: blue Gyuki tailed-beast bomb */
+        if (t < 42) {
+            float q = 0.5f + t * 0.06f;
+            part(c, 0.0f, 2.0f, 0.8f, q, q, q, RGB(40,85,180));
+            part(c, 0.0f, 2.0f, 0.8f, q * 0.62f, q * 0.62f, q * 0.62f, RGB(120,185,255));
+        } else if (t < 70) {
+            float k = (float)(t - 42) / 28.0f;
+            gfx_box(o->x, 1.5f, o->z, 1.5f + k * 4.0f, 1.5f + k * 4.0f, 1.5f + k * 4.0f, RGB(40,85,180));
+            part(o, 0.0f, 1.5f, 0.0f, 1.0f + k * 2.0f, 1.0f + k * 2.0f, 1.0f + k * 2.0f, RGB(150,210,255));
+        }
+        break;
     default:
         s = 0.3f + t * 0.02f;
         part(c, 0.0f, 1.5f, 0.9f, s, s, s, RGB(255, 120, 190));
