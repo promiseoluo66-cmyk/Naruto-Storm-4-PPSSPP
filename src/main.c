@@ -1182,7 +1182,7 @@ static void draw_details(const Fighter *f, unsigned hair, unsigned dark)
         part(f, 0.0f, 2.30f, 0.0f, 0.65f, 0.13f, 0.58f, RGB(35,35,45));
         part(f, -0.22f, 2.65f, -0.05f, 0.16f, 0.32f, 0.16f, hair);
         part(f, 0.22f, 2.65f, -0.05f, 0.16f, 0.32f, 0.16f, hair);
-        part(f, 0.0f, 1.45f, 0.28f, 0.18f, 0.50f, 0.04f, acc);
+        part(f, 0.0f, 1.45f, 0.28f, 0.18f, 0.50f, 0.04f, RGB(150,35,45));
         break;
     case 10: /* Pain: orange hair and Rinnegan markers */
         part(f, -0.22f, 2.62f, -0.05f, 0.14f, 0.32f, 0.14f, hair);
@@ -1213,7 +1213,7 @@ static void draw_details(const Fighter *f, unsigned hair, unsigned dark)
         part(f, 0.0f, 2.64f, -0.04f, 0.60f, 0.25f, 0.56f, hair);
         part(f, -0.30f, 2.20f, -0.08f, 0.12f, 0.85f, 0.30f, hair);
         part(f, 0.30f, 2.20f, -0.08f, 0.12f, 0.85f, 0.30f, hair);
-        part(f, 0.0f, 1.50f, -0.30f, 0.92f, 0.95f, 0.12f, acc);
+        part(f, 0.0f, 1.50f, -0.30f, 0.92f, 0.95f, 0.12f, RGB(220,220,220));
         break;
     case 15: /* Killer Bee: head wrap and dark glasses */
         part(f, 0.0f, 2.42f, 0.0f, 0.62f, 0.18f, 0.58f, dark);
