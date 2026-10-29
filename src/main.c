@@ -1160,6 +1160,58 @@ static void draw_details(const Fighter *f, unsigned hair, unsigned dark)
         part(f, -0.18f, 2.62f, 0.0f, 0.10f, 0.30f, 0.10f, RGB(255, 255, 255));
         part(f,  0.18f, 2.62f, 0.0f, 0.10f, 0.30f, 0.10f, RGB(255, 255, 255));
         break;
+    case 8: /* Minato: swept blond hair and Hokage cloak */
+        part(f, -0.24f, 2.62f, -0.02f, 0.18f, 0.28f, 0.18f, hair);
+        part(f, 0.02f, 2.70f, -0.02f, 0.18f, 0.32f, 0.18f, hair);
+        part(f, 0.28f, 2.57f, -0.02f, 0.16f, 0.24f, 0.16f, hair);
+        part(f, 0.0f, 1.48f, -0.30f, 0.96f, 1.15f, 0.16f, acc);
+        part(f, 0.0f, 1.55f, -0.40f, 0.72f, 0.75f, 0.08f, RGB(185,45,45));
+        break;
+    case 9: /* Itachi: dark Akatsuki cloak and red cloud markings */
+        part(f, 0.0f, 1.42f, 0.0f, 0.92f, 0.95f, 0.50f, RGB(25,22,30));
+        part(f, 0.0f, 2.30f, 0.0f, 0.65f, 0.13f, 0.58f, RGB(35,35,45));
+        part(f, -0.22f, 2.65f, -0.05f, 0.16f, 0.32f, 0.16f, hair);
+        part(f, 0.22f, 2.65f, -0.05f, 0.16f, 0.32f, 0.16f, hair);
+        part(f, 0.0f, 1.45f, 0.28f, 0.18f, 0.50f, 0.04f, acc);
+        break;
+    case 10: /* Pain: orange hair and Rinnegan markers */
+        part(f, -0.22f, 2.62f, -0.05f, 0.14f, 0.32f, 0.14f, hair);
+        part(f, 0.22f, 2.62f, -0.05f, 0.14f, 0.32f, 0.14f, hair);
+        part(f, 0.0f, 2.50f, -0.28f, 0.52f, 0.28f, 0.10f, hair);
+        part(f, -0.18f, 2.12f, 0.29f, 0.04f, 0.04f, 0.04f, RGB(190,190,200));
+        part(f, 0.18f, 2.12f, 0.29f, 0.04f, 0.04f, 0.04f, RGB(190,190,200));
+        break;
+    case 11: /* Gaara: red hair and sand gourd */
+        part(f, 0.0f, 2.62f, -0.03f, 0.64f, 0.22f, 0.58f, hair);
+        part(f, 0.0f, 1.45f, -0.38f, 0.65f, 0.92f, 0.35f, RGB(120,65,45));
+        part(f, 0.0f, 1.86f, 0.25f, 0.18f, 0.14f, 0.04f, RGB(205,155,95));
+        break;
+    case 12: /* Might Guy: bowl-cut hair and green outfit */
+        part(f, 0.0f, 2.42f, 0.0f, 0.62f, 0.18f, 0.58f, hair);
+        part(f, -0.16f, 2.12f, 0.29f, 0.08f, 0.06f, 0.04f, dark);
+        part(f, 0.16f, 2.12f, 0.29f, 0.08f, 0.06f, 0.04f, dark);
+        part(f, 0.0f, 1.45f, 0.24f, 0.52f, 0.08f, 0.04f, RGB(35,35,40));
+        break;
+    case 13: /* Jiraiya: long white hair */
+        part(f, -0.34f, 2.12f, -0.10f, 0.12f, 1.10f, 0.30f, hair);
+        part(f, 0.34f, 2.12f, -0.10f, 0.12f, 1.10f, 0.30f, hair);
+        part(f, 0.0f, 2.64f, -0.08f, 0.56f, 0.24f, 0.52f, hair);
+        part(f, -0.28f, 2.08f, 0.28f, 0.04f, 0.08f, 0.04f, RGB(190,40,45));
+        part(f, 0.28f, 2.08f, 0.28f, 0.04f, 0.08f, 0.04f, RGB(190,40,45));
+        break;
+    case 14: /* Orochimaru: straight black hair and pale robe */
+        part(f, 0.0f, 2.64f, -0.04f, 0.60f, 0.25f, 0.56f, hair);
+        part(f, -0.30f, 2.20f, -0.08f, 0.12f, 0.85f, 0.30f, hair);
+        part(f, 0.30f, 2.20f, -0.08f, 0.12f, 0.85f, 0.30f, hair);
+        part(f, 0.0f, 1.50f, -0.30f, 0.92f, 0.95f, 0.12f, acc);
+        break;
+    case 15: /* Killer Bee: head wrap and dark glasses */
+        part(f, 0.0f, 2.42f, 0.0f, 0.62f, 0.18f, 0.58f, dark);
+        part(f, -0.14f, 2.14f, 0.29f, 0.15f, 0.10f, 0.04f, RGB(15,15,20));
+        part(f, 0.14f, 2.14f, 0.29f, 0.15f, 0.10f, 0.04f, RGB(15,15,20));
+        part(f, -0.30f, 1.25f, 0.05f, 0.06f, 0.95f, 0.06f, RGB(45,45,50));
+        part(f, 0.30f, 1.25f, 0.05f, 0.06f, 0.95f, 0.06f, RGB(45,45,50));
+        break;
     }
 }
 
