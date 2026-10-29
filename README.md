@@ -70,9 +70,21 @@ Progress is written to `ms0:/PSP/SAVEDATA/NARUTOSTORM4/save.bin` (small file wit
 
 Unlocks: Madara after Ch1, Kakashi after Ch2, Obito after Ch3, Kaguya after Ch5. Naruto, Sasuke, Hashirama, Sakura start unlocked.
 
-## Build
-Push to `main`; GitHub Actions builds `EBOOT.PBP` with the pspdev toolchain.
-Download it from the Actions run artifacts, then place it in `PSP/GAME/NarutoStorm4/` for PPSSPP.
+## Runtime asset layout
+
+The installable game folder uses this layout. These are our own homebrew folders and formats, not a copy of proprietary game files:
+
+`PSP/GAME/NarutoStorm4/`
+- `EBOOT.PBP` — compiled homebrew executable.
+- `assets/chr/` — character meshes, textures and animation data.
+- `assets/stg/` — stage/arena assets.
+- `assets/ui/` — HUD, menus and fonts.
+
+The runtime asset-path helper builds paths such as `assets/chr/naruto.nmdl`, `assets/stg/arena01.nmdl` and `assets/ui/hud.nmtx`. The existing NMDL/NMTX loaders can read those paths when called by gameplay code. Current fighters and arenas are still drawn procedurally: adding the folders and loaders does not mean imported art is already being rendered.
+
+## Build and install
+
+Push to `main`; GitHub Actions builds `EBOOT.PBP` with the pspdev toolchain and creates `NarutoStorm4-PSP.zip`, containing the complete `PSP/GAME/NarutoStorm4/` folder including `assets/`. Download the ZIP from the Actions artifact or release, extract it, and copy the included `PSP` folder into the PPSSPP memory stick directory. You can also download `EBOOT.PBP` separately, but that file alone does not include external assets.
 
 ## Data files
 `data/characters/*.json` and `data/missions/*.json` document the roster/story design but are **not loaded by the game yet**; the playable data is compiled into `src/main.c`.
