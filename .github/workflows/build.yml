@@ -19,10 +19,28 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build
-        run: make clean || true; make
+        run: |
+          make clean
+          make
 
-      - name: Show output
-        run: ls -la EBOOT.PBP
+      - name: Package PSP folder
+        run: |
+          test -s EBOOT.PBP
+          mkdir -p dist/PSP/GAME/NarutoStorm4/assets/chr
+          mkdir -p dist/PSP/GAME/NarutoStorm4/assets/stg
+          mkdir -p dist/PSP/GAME/NarutoStorm4/assets/ui
+          cp EBOOT.PBP dist/PSP/GAME/NarutoStorm4/EBOOT.PBP
+          cp -R assets/chr/. dist/PSP/GAME/NarutoStorm4/assets/chr/
+          cp -R assets/stg/. dist/PSP/GAME/NarutoStorm4/assets/stg/
+          cp -R assets/ui/. dist/PSP/GAME/NarutoStorm4/assets/ui/
+          cd dist && zip -r NarutoStorm4-PSP.zip PSP
+          ls -lh PSP/GAME/NarutoStorm4/EBOOT.PBP NarutoStorm4-PSP.zip
+
+      - name: Upload installable PSP folder (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: NarutoStorm4-PSP
+          path: dist/NarutoStorm4-PSP.zip
 
       - name: Upload EBOOT.PBP (artifact)
         uses: actions/upload-artifact@v4
@@ -30,7 +48,7 @@ jobs:
           name: EBOOT.PBP
           path: EBOOT.PBP
 
-      - name: Publish release (download EBOOT.PBP from the Releases page)
+      - name: Publish release (download installable ZIP and EBOOT.PBP)
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
@@ -38,7 +56,10 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: Build ${{ github.run_number }}
           body: |
-            Download EBOOT.PBP below, put it in a folder called NarutoStorm4 inside PSP/GAME/ on your phone, then open that folder in PPSSPP.
-            Untested prototype build.
+            Installable PSP folder: extract NarutoStorm4-PSP.zip and copy its PSP folder to the root of your PSP memory stick or PPSSPP memory stick directory.
+            EBOOT.PBP is also provided separately.
+            Untested prototype build; test in PPSSPP before treating gameplay as verified.
           prerelease: true
-          files: EBOOT.PBP
+          files: |
+            EBOOT.PBP
+            dist/NarutoStorm4-PSP.zip
