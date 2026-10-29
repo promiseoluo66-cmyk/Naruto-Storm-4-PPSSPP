@@ -1947,10 +1947,13 @@ int main(void)
             }
             break;
         case GS_SELECT:
+            /* D-pad moves one tile; L/R moves exactly one 24-fighter page. */
             if (pressed & PSP_CTRL_LEFT)  select_idx = (select_idx + NUM_CHARS - 1) % NUM_CHARS;
             if (pressed & PSP_CTRL_RIGHT) select_idx = (select_idx + 1) % NUM_CHARS;
             if (pressed & PSP_CTRL_UP)    select_idx = (select_idx + NUM_CHARS - 6) % NUM_CHARS;
             if (pressed & PSP_CTRL_DOWN)  select_idx = (select_idx + 6) % NUM_CHARS;
+            if (pressed & PSP_CTRL_LTRIGGER) select_idx = (select_idx + NUM_CHARS - 24) % NUM_CHARS;
+            if (pressed & PSP_CTRL_RTRIGGER) select_idx = (select_idx + 24) % NUM_CHARS;
             if (pressed & PSP_CTRL_CIRCLE) gstate = GS_MENU;
             if ((pressed & PSP_CTRL_CROSS) && !select_mode) {
                 if (character_unlocked(select_idx)) start_free_battle(select_idx);
@@ -2035,7 +2038,7 @@ int main(void)
             gfx_3d();
             gfx_camera(2.5f, 2.5f, 7.0f, 2.5f, 1.2f, 0.0f);
             gfx_box(2.5f, -0.05f, 0, 5.4f, 0.1f, 5.4f, RGB(46, 55, 90));
-            draw_preview((int)(frame / 180) % 8, menu_angle, 2.5f);
+            draw_preview((int)(frame / 180) % NUM_CHARS, menu_angle, 2.5f);
             gfx_2d();
             gfx_text(24, 20, 3, RGB(255, 155, 35), "NARUTO");
             gfx_text(24, 43, 3, RGB(255, 255, 255), "STORM");
@@ -2093,13 +2096,14 @@ int main(void)
                 gfx_rect(x + 6, y + 18, 15, 10, open ? tile : RGB(65, 65, 75));
                 gfx_rect(x + 4, y + 30, 19, 3, open ? roster[idx].accent : RGB(85, 65, 70));
                 if (!open) gfx_rect(x + 2, y + 2, 23, 33, RGBA(0, 0, 0, 120));
-                gfx_text(x + 2, y + 38, 1, chosen ? RGB(255, 235, 145) : RGB(190, 200, 225), idx < 99 ? (idx < 10 ? "0" : "") : "");
+                sprintf(buf, "%02d", idx + 1);
+                gfx_text(x + 7, y + 29, 1, chosen ? RGB(255, 235, 145) : RGB(190, 200, 225), buf);
                 if (chosen) {
                     gfx_rect(x - 2, y - 2, 31, 2, RGB(255, 245, 180));
                     gfx_rect(x - 2, y + 37, 31, 2, RGB(255, 245, 180));
                 }
             }
-            gfx_text(12, 232, 1, RGB(185, 200, 230), "D-PAD: MOVE   L/R: PAGE THROUGH FIGHTERS");
+            gfx_text(12, 232, 1, RGB(185, 200, 230), "D-PAD: MOVE   L/R TRIGGER: CHANGE PAGE");
             gfx_text(12, 245, 1, RGB(255, 220, 100), "CROSS: CONFIRM   CIRCLE: BACK");
             sprintf(buf, "PAGE %d / %d", page_start / 24 + 1, (NUM_CHARS + 23) / 24);
             gfx_text(12, 258, 1, RGB(160, 180, 220), buf);
