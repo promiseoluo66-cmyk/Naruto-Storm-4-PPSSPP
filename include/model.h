@@ -8,7 +8,7 @@
  *   f32 x,y,z. Legacy v1 files (color,x,y,z; 16 bytes) remain readable.
  *
  * NMTX v1 texture format:
- *   "NMTX", u32 version=1, u32 width, u32 height, u32 format=3 (RGBA8888),
+ *   "NMTX", u32 version=1, u32 width, u32 height, u32 format=1 (RGB565) or 3 (RGBA8888),
  *   followed by width*height RGBA8888 pixels.
  * Texture dimensions must be powers of two between 8 and 512.
  *
