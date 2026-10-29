@@ -3,3 +3,7 @@
 *.prx
 PARAM.SFO
 EBOOT.PBP
+src/gen_assets.c
+assets/chr/test/*.obj
+assets/chr/test/*.nmdl
+assets/chr/test/*.nmtx

@@ -110,6 +110,38 @@ int model_load(Model *model, const char *path)
 
     sceIoClose(fd);
     model->vertex_count = header.vertex_count;
+    /* make the CPU-written vertices visible to the GE */
+    sceKernelDcacheWritebackInvalidateRange(model->vertices,
+                                            header.vertex_count * sizeof(ModelVertex));
+    return 0;
+}
+
+/* Load an NMDL v2 mesh that is already in memory (e.g. embedded in the EBOOT). */
+int model_load_memory(Model *model, const void *data, unsigned int size)
+{
+    NmdlHeader header;
+    unsigned int bytes;
+
+    if (!model || !data) return -1;
+    model->vertices = NULL;
+    model->vertex_count = 0;
+    if (size < sizeof(header)) return -3;
+    memcpy(&header, data, sizeof(header));
+    if (memcmp(header.magic, "NMDL", 4) != 0 ||
+        header.version != NMDL_VERSION ||
+        header.vertex_count == 0 ||
+        header.vertex_count > NMDL_MAX_VERTICES ||
+        (header.vertex_count % 3) != 0) {
+        return -4;
+    }
+    bytes = header.vertex_count * (unsigned int)sizeof(ModelVertex);
+    if (size < sizeof(header) + bytes) return -6;
+
+    model->vertices = (ModelVertex *)memalign(16, bytes);
+    if (!model->vertices) return -5;
+    memcpy(model->vertices, (const unsigned char *)data + sizeof(header), bytes);
+    model->vertex_count = header.vertex_count;
+    sceKernelDcacheWritebackInvalidateRange(model->vertices, bytes);
     return 0;
 }
 
@@ -161,6 +193,38 @@ int model_texture_load(ModelTexture *texture, const char *path)
     }
     sceIoClose(fd);
 
+    texture->width = header.width;
+    texture->height = header.height;
+    texture->format = header.format;
+    sceKernelDcacheWritebackInvalidateRange(texture->pixels, bytes);
+    return 0;
+}
+
+/* Load an NMTX v1 texture that is already in memory. */
+int model_texture_load_memory(ModelTexture *texture, const void *data, unsigned int size)
+{
+    NmtxHeader header;
+    unsigned int bytes;
+
+    if (!texture || !data) return -1;
+    texture->pixels = NULL;
+    texture->width = texture->height = texture->format = 0;
+    if (size < sizeof(header)) return -3;
+    memcpy(&header, data, sizeof(header));
+    if (memcmp(header.magic, "NMTX", 4) != 0 ||
+        header.version != NMTX_VERSION ||
+        (header.format != NMTX_FORMAT_RGB565 && header.format != NMTX_FORMAT_RGBA8888) ||
+        !is_power_of_two(header.width) ||
+        !is_power_of_two(header.height)) {
+        return -4;
+    }
+    bytes = header.width * header.height *
+            (header.format == NMTX_FORMAT_RGB565 ? 2u : 4u);
+    if (size < sizeof(header) + bytes) return -6;
+
+    texture->pixels = memalign(16, bytes);
+    if (!texture->pixels) return -5;
+    memcpy(texture->pixels, (const unsigned char *)data + sizeof(header), bytes);
     texture->width = header.width;
     texture->height = header.height;
     texture->format = header.format;

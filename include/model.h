@@ -37,9 +37,12 @@ typedef struct {
 } ModelTexture;
 
 int model_load(Model *model, const char *path);
+/* Same format, but from a buffer already in memory (e.g. embedded in the EBOOT). v2 only. */
+int model_load_memory(Model *model, const void *data, unsigned int size);
 /* Convenience loaders resolve filenames under assets/chr, assets/stg or assets/ui. */
 int model_load_asset(Model *model, AssetCategory category, const char *filename);
 int model_texture_load(ModelTexture *texture, const char *path);
+int model_texture_load_memory(ModelTexture *texture, const void *data, unsigned int size);
 int model_texture_load_asset(ModelTexture *texture, AssetCategory category,
                              const char *filename);
 void model_texture_bind(const ModelTexture *texture);
