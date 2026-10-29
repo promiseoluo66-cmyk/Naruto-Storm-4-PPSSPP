@@ -1,5 +1,5 @@
 TARGET = naruto_storm4
-OBJS = src/main.o src/gfx.o src/model.o
+OBJS = src/main.o src/gfx.o src/model.o src/assets.o
 
 INCDIR = include
 CFLAGS = -O2 -G0 -Wall
