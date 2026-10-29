@@ -1120,16 +1120,16 @@ static void draw_fighter(const Fighter *f)
     part(f, 0.0f, 1.62f, 0.23f, 0.52f, 0.14f, 0.04f, acc);
     part(f, 0.0f, 1.82f, 0.0f, 0.22f, 0.14f, 0.22f, skin);
     /* shoulders */
-    part(f, -0.52f, 1.68f, 0.0f, 0.28f, 0.26f, 0.34f, body);
-    part(f,  0.52f, 1.68f, 0.0f, 0.28f, 0.26f, 0.34f, body);
+    gfx_ellipsoid(f->x - 0.52f, 1.68f, f->z, 0.36f, 0.32f, 0.40f, body);
+    gfx_ellipsoid(f->x + 0.52f, 1.68f, f->z, 0.36f, 0.32f, 0.40f, body);
 
     /* head: face, eyes, hair cap */
-    part(f, 0.0f, 2.12f, 0.0f, 0.58f, 0.56f, 0.54f, skin);
+    gfx_ellipsoid(f->x, 2.12f, f->z, 0.62f, 0.62f, 0.58f, skin);
     if (id != 6) {
         part(f, -0.14f, 2.14f, 0.28f, 0.10f, 0.10f, 0.03f, id == 4 ? skin : eyec);
         part(f,  0.14f, 2.14f, 0.28f, 0.10f, 0.10f, 0.03f, eyec);
     }
-    part(f, 0.0f, 2.46f, -0.02f, 0.64f, 0.20f, 0.60f, hair);
+    gfx_ellipsoid(f->x, 2.43f, f->z - 0.02f, 0.70f, 0.30f, 0.64f, hair);
 
     draw_details(f, hair, dark);
 
