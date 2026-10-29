@@ -134,6 +134,44 @@ void gfx_box_rot(float x, float y, float z, float w, float h, float d, float yaw
     sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D, 36, 0, v);
 }
 
+
+/* Rounded low-poly ellipsoid for more natural anime-style character silhouettes. */
+void gfx_ellipsoid(float x, float y, float z, float w, float h, float d, unsigned color)
+{
+    enum { LAT = 6, LON = 10 };
+    Vtx *v = (Vtx *)sceGuGetMemory(LAT * LON * 6 * sizeof(Vtx));
+    static const int tri[6] = { 0, 1, 2, 0, 2, 3 };
+    const float pi = 3.14159265358979323846f;
+    ScePspFVector3 t = { x, y, z };
+    int lat, lon, n = 0;
+    for (lat = 0; lat < LAT; lat++) {
+        float a0 = -pi * 0.5f + pi * (float)lat / LAT;
+        float a1 = -pi * 0.5f + pi * (float)(lat + 1) / LAT;
+        for (lon = 0; lon < LON; lon++) {
+            float b0 = 2.0f * pi * (float)lon / LON;
+            float b1 = 2.0f * pi * (float)(lon + 1) / LON;
+            float px[4] = { cosf(a0)*cosf(b0)*w*0.5f, cosf(a0)*cosf(b1)*w*0.5f,
+                            cosf(a1)*cosf(b1)*w*0.5f, cosf(a1)*cosf(b0)*w*0.5f };
+            float py[4] = { sinf(a0)*h*0.5f, sinf(a0)*h*0.5f,
+                            sinf(a1)*h*0.5f, sinf(a1)*h*0.5f };
+            float pz[4] = { cosf(a0)*sinf(b0)*d*0.5f, cosf(a0)*sinf(b1)*d*0.5f,
+                            cosf(a1)*sinf(b1)*d*0.5f, cosf(a1)*sinf(b0)*d*0.5f };
+            int k;
+            for (k = 0; k < 6; k++) {
+                int q = tri[k];
+                float light = 0.76f + 0.24f * ((py[q] / (h * 0.5f + 0.001f) + 1.0f) * 0.5f);
+                v[n].color = shade(color, light);
+                v[n].x = px[q]; v[n].y = py[q]; v[n].z = pz[q]; n++;
+            }
+        }
+    }
+    sceGumMatrixMode(GU_MODEL);
+    sceGumLoadIdentity();
+    sceGumTranslate(&t);
+    sceGumUpdateMatrix();
+    sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D, n, 0, v);
+}
+
 void gfx_box(float x, float y, float z, float w, float h, float d, unsigned color)
 {
     gfx_box_rot(x, y, z, w, h, d, 0.0f, color);
