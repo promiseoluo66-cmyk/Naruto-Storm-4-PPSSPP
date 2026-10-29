@@ -38,13 +38,14 @@ jobs:
       - name: Package PSP folder
         run: |
           test -s EBOOT.PBP
-          mkdir -p dist/PSP/GAME/NarutoStorm4/assets/chr
-          mkdir -p dist/PSP/GAME/NarutoStorm4/assets/stg
-          mkdir -p dist/PSP/GAME/NarutoStorm4/assets/ui
+          mkdir -p dist/PSP/GAME/NarutoStorm4
           cp EBOOT.PBP dist/PSP/GAME/NarutoStorm4/EBOOT.PBP
-          cp -R assets/chr/. dist/PSP/GAME/NarutoStorm4/assets/chr/
-          cp -R assets/stg/. dist/PSP/GAME/NarutoStorm4/assets/stg/
-          cp -R assets/ui/. dist/PSP/GAME/NarutoStorm4/assets/ui/
+          mkdir -p dist/PSP/GAME/NarutoStorm4/assets
+          cp -R assets/. dist/PSP/GAME/NarutoStorm4/assets/
+          if [ -d data ]; then
+            mkdir -p dist/PSP/GAME/NarutoStorm4/data
+            cp -R data/. dist/PSP/GAME/NarutoStorm4/data/
+          fi
           cd dist && zip -r NarutoStorm4-PSP.zip PSP
           ls -lh PSP/GAME/NarutoStorm4/EBOOT.PBP NarutoStorm4-PSP.zip
 
