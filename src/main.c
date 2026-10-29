@@ -68,7 +68,7 @@ typedef struct {
     unsigned awk_col;
 } Def;
 
-#define NUM_CHARS 48
+#define NUM_CHARS 49
 static const Def roster[NUM_CHARS] = {
     { "NARUTO", 1000, 0.135f, RGB(245,140,20), RGB(25,50,190), RGB(250,215,60), RGB(80,180,255),
       { { "RASENGAN",      MV_DASH,  25, 240, 120, 20, 0.45f, 2.0f, 0.30f, 0.5f },
@@ -1018,7 +1018,7 @@ static int pick_support(int a, int b)
     int tries, s;
     for (tries = 0; tries < 40; tries++) {
         s = rand() % NUM_CHARS;
-        if (s != a && s != b && ((um >> s) & 1u)) return s;
+        if (s != a && s != b && character_unlocked(s)) return s;
     }
     return -1;
 }
