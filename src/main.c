@@ -1174,7 +1174,7 @@ static void draw_details(const Fighter *f, unsigned hair, unsigned dark)
         part(f, -0.24f, 2.62f, -0.02f, 0.18f, 0.28f, 0.18f, hair);
         part(f, 0.02f, 2.70f, -0.02f, 0.18f, 0.32f, 0.18f, hair);
         part(f, 0.28f, 2.57f, -0.02f, 0.16f, 0.24f, 0.16f, hair);
-        part(f, 0.0f, 1.48f, -0.30f, 0.96f, 1.15f, 0.16f, acc);
+        part(f, 0.0f, 1.48f, -0.30f, 0.96f, 1.15f, 0.16f, RGB(245,240,220));
         part(f, 0.0f, 1.55f, -0.40f, 0.72f, 0.75f, 0.08f, RGB(185,45,45));
         break;
     case 9: /* Itachi: dark Akatsuki cloak and red cloud markings */
