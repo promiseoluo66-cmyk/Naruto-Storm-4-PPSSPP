@@ -1400,7 +1400,22 @@ static void draw_fighter(const Fighter *f)
 
     draw_details(f, hair, dark);
 
-    /* arms */
+    /* Low-cost costume pass: raised seams, wrist guards, gloves and boot caps.
+       These are separate depth-layered pieces so the silhouette reads better
+       without requiring texture maps or expensive PSP shaders. */
+    part(f, 0.0f, 1.22f, 0.285f, 0.48f, 0.035f, 0.025f, RGB(225, 205, 145));
+    part(f, -0.37f, 1.48f, 0.22f, 0.055f, 0.42f, 0.035f, d->accent);
+    part(f,  0.37f, 1.48f, 0.22f, 0.055f, 0.42f, 0.035f, d->accent);
+    part(f, -0.55f, 1.10f, 0.08f, 0.29f, 0.18f, 0.31f, dark);
+    part(f,  0.55f, 1.10f, 0.08f, 0.29f, 0.18f, 0.31f, dark);
+    part(f, -0.55f, 1.04f, 0.13f, 0.25f, 0.10f, 0.27f, acc);
+    part(f,  0.55f, 1.04f, 0.13f, 0.25f, 0.10f, 0.27f, acc);
+    gfx_ellipsoid(f->x - 0.20f, 0.16f, f->z + sw * 0.35f + 0.06f,
+                  0.20f, 0.13f, 0.28f, dark);
+    gfx_ellipsoid(f->x + 0.20f, 0.16f, f->z - sw * 0.35f + 0.06f,
+                  0.20f, 0.13f, 0.28f, dark);
+
+    /* Arms */
     if ((f->state == FS_ATTACK && f->timer >= 3 && f->timer <= 9) ||
         (mv && (mv->type == MV_DASH || mv->type == MV_SLASH) && f->timer >= 4 && f->timer <= 16)) {
         part(f, -0.50f, 1.50f, 0.70f, 0.22f, 0.22f, 1.10f, body);
