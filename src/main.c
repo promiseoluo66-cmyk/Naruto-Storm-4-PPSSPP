@@ -273,7 +273,7 @@ typedef struct {
     float hp, maxhp, chakra, dmg_mult, spd_mult, awm, supm;
     FState state;
     int timer, combo, combo_win, queued, stun, inv, guarding, dead, hit_flash, phase_lvl;
-    int move, hitdone, frozen, burn, awk;
+    int move, hitdone, frozen, burn, awk, dash_chase;
     int jcd[3];
     int sup[2], sup_idx, sup_t, sup_def;
     float kbx, kbz, dashx, dashz, phase, burn_dps, mark_x, mark_z;
@@ -282,7 +282,7 @@ typedef struct {
 
 typedef struct {
     float ax, ay;
-    int atk, jutsu, charge, guard, jump, dash, ult, awaken, support;
+    int atk, jutsu, charge, guard, jump, dash, chakra_dash, substitute, ult, awaken, support;
 } Input;
 
 typedef struct {
@@ -612,7 +612,15 @@ static void fighter_update(Fighter *f, Fighter *o, const Input *in)
             if (f->sup_t > 50) f->sup_t = 0;
         }
 
-        if (f->stun > 0) {
+        if (in->substitute && f->chakra >= 10.0f && f->stun > 0) {
+            /* Storm-style substitution: spend chakra, escape hit-stun and reappear behind opponent. */
+            f->chakra -= 10.0f;
+            f->stun = 0; f->inv = 24; f->state = FS_IDLE; f->combo = 0; f->queued = 0;
+            f->x = o->x - f->fx * 1.65f; f->z = o->z - f->fz * 1.65f;
+            f->kbx = f->kbz = 0.0f;
+            spawn_fx(f->x, f->y + 1.0f, f->z, RGB(210, 210, 235), 10);
+            set_msg("SUBSTITUTION JUTSU!");
+        } else if (f->stun > 0) {
             f->stun--;
             f->x += f->kbx; f->z += f->kbz;
             f->kbx *= 0.8f; f->kbz *= 0.8f;
@@ -635,12 +643,18 @@ static void fighter_update(Fighter *f, Fighter *o, const Input *in)
                     f->combo_win = 0; f->queued = 0; f->state = FS_ATTACK; f->timer = 0;
                 } else if (in->jutsu > 0) {
                     start_jutsu(f, in->jutsu - 1);
-                } else if (in->dash && f->chakra >= 10.0f) {
+                } else if (in->chakra_dash && f->chakra >= 15.0f) {
+                    /* Chakra dash: fast homing approach that can open a combo. */
+                    f->chakra -= 15.0f;
+                    f->dashx = f->fx; f->dashz = f->fz; f->dash_chase = 1;
+                    f->hitdone = 0; f->state = FS_DASH; f->timer = 0; f->inv = 5;
+                    spawn_fx(f->x, f->y + 0.8f, f->z, roster[f->def].orb, 5);
+                } else if (in->dash) {
+                    /* R-trigger remains a quick evasive ninja move. */
                     float m2 = sqrtf(mx * mx + mz * mz);
-                    f->chakra -= 10.0f;
                     if (m2 > 0.3f) { f->dashx = mx / m2; f->dashz = mz / m2; }
                     else { f->dashx = -f->fx; f->dashz = -f->fz; }
-                    f->state = FS_DASH; f->timer = 0; f->inv = 14;
+                    f->dash_chase = 0; f->state = FS_DASH; f->timer = 0; f->inv = 12;
                 }
             } break;
             case FS_ATTACK:
@@ -665,8 +679,24 @@ static void fighter_update(Fighter *f, Fighter *o, const Input *in)
                 break;
             case FS_DASH:
                 f->timer++;
-                f->x += f->dashx * 0.45f; f->z += f->dashz * 0.45f;
-                if (f->timer >= 8) f->state = FS_IDLE;
+                if (f->dash_chase) {
+                    /* Slightly steer the dash toward the locked-on opponent. */
+                    float tx = o->x - f->x, tz = o->z - f->z, tl = sqrtf(tx * tx + tz * tz);
+                    if (tl > 0.01f) { f->dashx = tx / tl; f->dashz = tz / tl; }
+                    f->x += f->dashx * 0.52f; f->z += f->dashz * 0.52f;
+                    if (!f->hitdone && dist_xz(f->x, f->z, o->x, o->z) <= 1.55f) {
+                        f->hitdone = 1;
+                        if (deal_damage(o, f, 28.0f, 10, 0.12f) == 1) {
+                            f->state = FS_ATTACK; f->timer = 0; f->combo = 1;
+                            f->combo_win = 0; f->queued = 0;
+                            spawn_fx(o->x, o->y + 1.3f, o->z, RGB(160, 210, 255), 9);
+                        }
+                    }
+                    if (f->timer >= 12 && f->state == FS_DASH) f->state = FS_IDLE;
+                } else {
+                    f->x += f->dashx * 0.45f; f->z += f->dashz * 0.45f;
+                    if (f->timer >= 8) f->state = FS_IDLE;
+                }
                 break;
             case FS_ULT:
                 f->timer++;
@@ -768,6 +798,9 @@ static Input read_input(const SceCtrlData *p, unsigned pressed)
     }
     in.jump = !!(pressed & PSP_CTRL_CROSS);
     in.dash = !!(pressed & PSP_CTRL_RTRIGGER);
+    in.chakra_dash = !!((p->Buttons & PSP_CTRL_TRIANGLE) && (pressed & PSP_CTRL_CROSS));
+    in.substitute = ((p->Buttons & PSP_CTRL_LTRIGGER) && (p->Buttons & PSP_CTRL_RTRIGGER) &&
+                     ((pressed & PSP_CTRL_LTRIGGER) || (pressed & PSP_CTRL_RTRIGGER)));
     in.charge = !!(p->Buttons & PSP_CTRL_TRIANGLE);
     in.guard = !!(p->Buttons & PSP_CTRL_LTRIGGER);
     if ((p->Buttons & PSP_CTRL_TRIANGLE) && (pressed & PSP_CTRL_CIRCLE)) { in.ult = 1; in.atk = 0; }
