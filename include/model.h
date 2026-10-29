@@ -1,6 +1,8 @@
 #ifndef MODEL_H
 #define MODEL_H
 
+#include "assets.h"
+
 /*
  * NMDL v2 mesh format (little-endian):
  *   "NMDL", u32 version=2, u32 vertex_count
@@ -35,7 +37,11 @@ typedef struct {
 } ModelTexture;
 
 int model_load(Model *model, const char *path);
+/* Convenience loaders resolve filenames under assets/chr, assets/stg or assets/ui. */
+int model_load_asset(Model *model, AssetCategory category, const char *filename);
 int model_texture_load(ModelTexture *texture, const char *path);
+int model_texture_load_asset(ModelTexture *texture, AssetCategory category,
+                             const char *filename);
 void model_texture_bind(const ModelTexture *texture);
 void model_texture_unbind(void);
 void model_draw(const Model *model, float x, float y, float z, float yaw);
