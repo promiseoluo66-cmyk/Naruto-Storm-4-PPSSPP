@@ -93,3 +93,23 @@ Push to `main`; GitHub Actions builds `EBOOT.PBP` with the pspdev toolchain and 
 - Placeholder box models, no real animation, no audio, text-only dialogue.
 - Roster is currently 16 of the 100+ Storm 4 character variants; this is an initial expansion, not the full roster.
 - Balance, AI difficulty and performance (30 FPS target) unverified on a device.
+
+
+## Asset and data directory layout
+
+The repository keeps original game resources separated by purpose:
+
+- `assets/chr/`: character models and textures
+- `assets/stg/`: battle-stage resources
+- `assets/ui/`: menus and HUD resources
+- `assets/eft/`: visual effects
+- `assets/snd/bgm/`: background music
+- `assets/snd/se/`: sound effects
+- `assets/snd/voice/`: voice resources
+- `assets/common/`: shared resources
+- `data/roster/`: reserved for documented roster data
+- `data/stages/`: reserved for stage definitions
+
+GitHub does not track empty directories, so these folders contain small README files documenting their intended use. The build workflow packages the complete `assets/` and `data/` trees into the installable PSP folder.
+
+**Important:** Folder creation does not mean a loader or playback system exists. The current roster and stage logic remain in source code until separate parser/loader work is implemented. Only use original or properly licensed assets; the commercial ISO examined during planning is a structural reference, not a source of files to copy.
