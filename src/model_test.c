@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <stdlib.h>
 #include "gfx.h"
 #include "model.h"
 
@@ -31,6 +32,8 @@ int model_test_run(void)
     unsigned prev = 0, pressed;
     SceCtrlData pad;
     char line[64];
+    ModelVertex *rest_vertices = NULL;
+    float walk_phase = 0.0f;
 
     gfx_init();
     sceCtrlSetSamplingCycle(0);
@@ -47,8 +50,45 @@ int model_test_run(void)
         tsrc = "EMBEDDED";
     }
 
+    if (mr == 0) {
+        rest_vertices = (ModelVertex *)malloc(m.vertex_count * sizeof(ModelVertex));
+        if (rest_vertices) memcpy(rest_vertices, m.vertices, m.vertex_count * sizeof(ModelVertex));
+    }
+
     for (;;) {
+        unsigned int i;
+        float swing;
         sceCtrlPeekBufferPositive(&pad, 1);
+        walk_phase += 0.075f;
+        swing = sinf(walk_phase) * 0.22f;
+        if (rest_vertices) {
+            for (i = 0; i < m.vertex_count; ++i) {
+                const ModelVertex *src = &rest_vertices[i];
+                ModelVertex *dst = &m.vertices[i];
+                float pivot = 0.0f, angle = 0.0f;
+                float dy, sn, cs;
+                *dst = *src;
+                /* Opposing leg and arm swings create a simple walk-in-place cycle.
+                   Geometry is scaled to 1.66 units by the asset generator. */
+                if (src->y < 0.51f) {
+                    pivot = 0.045f;
+                    angle = (src->x < 0.0f) ? swing : -swing;
+                } else if (src->y > 0.52f && src->y < 0.99f &&
+                           (src->x > 0.20f || src->x < -0.20f)) {
+                    pivot = 0.60f;
+                    angle = (src->x < 0.0f) ? -swing : swing;
+                }
+                if (angle != 0.0f) {
+                    dy = src->y - pivot;
+                    sn = sinf(angle);
+                    cs = cosf(angle);
+                    dst->y = pivot + dy * cs - src->z * sn;
+                    dst->z = src->z * cs + dy * sn;
+                }
+            }
+            sceKernelDcacheWritebackInvalidateRange(m.vertices,
+                m.vertex_count * sizeof(ModelVertex));
+        }
         pressed = pad.Buttons & ~prev;
         prev = pad.Buttons;
         if (pressed & (PSP_CTRL_CROSS | PSP_CTRL_START)) break;
@@ -62,7 +102,7 @@ int model_test_run(void)
         gfx_2d();
         gfx_gradient(0, 0, 480, 272, RGB(25, 35, 80), RGB(90, 70, 110));
         gfx_3d();
-        gfx_camera(0.0f, 1.5f, 4.6f, 0.0f, 1.1f, 0.0f);
+        gfx_camera(0.0f, 1.05f, 2.85f, 0.0f, 0.83f, 0.0f);
         gfx_box(0.0f, -0.05f, 0.0f, 3.2f, 0.1f, 3.2f, RGB(70, 80, 110));
         if (mr == 0) {
             if (use_tex && tr == 0) model_draw_textured(&m, &tex, 0.0f, 0.0f, 0.0f, yaw);
@@ -70,7 +110,7 @@ int model_test_run(void)
         }
 
         gfx_2d();
-        gfx_text(10, 8, 2, RGB(255, 220, 100), "MODEL TEST - ORIGINAL CHARACTER");
+        gfx_text(10, 8, 2, RGB(255, 220, 100), "CHARACTER WALK CYCLE - 1.66M TARGET");
         if (mr == 0) {
             sprintf(line, "MESH: %s  %u TRIANGLES", msrc, m.vertex_count / 3);
             gfx_text(10, 30, 1, RGB(200, 230, 255), line);
@@ -86,6 +126,7 @@ int model_test_run(void)
         gfx_end();
     }
 
+    if (rest_vertices) free(rest_vertices);
     model_free(&m);
     model_texture_free(&tex);
     return 0;
