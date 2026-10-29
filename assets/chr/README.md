@@ -1,0 +1,1 @@
+Place original homebrew character mesh files (.nmdl), textures (.nmtx), and animation data here. Current in-game fighters are procedural placeholders; these assets are not yet wired into fighter rendering.
