@@ -18,7 +18,7 @@ Unofficial fan project. Uses only original placeholder models; no proprietary as
 | 7 | Optimization, real models, polish | Planned |
 
 ### What exists
-- 16 fighters: Naruto, Sasuke, Hashirama, Madara, Kakashi, Sakura, Obito, Kaguya, Minato, Itachi, Pain, Gaara, Might Guy, Jiraiya, Orochimaru and Killer Bee. Each has 3 named jutsu and an Ultimate; several fighters have an Awakening.
+- 77 selectable fighter entries in the current roster: original core fighters plus Naruto/Sasuke forms, Sakura War, Sai, Yamato, the main Konoha squad, Hokage-era shinobi, Sand/Cloud Kage, Akatsuki, jinchuriki and Boruto-era fighters. Each entry has three jutsu labels, an Ultimate and stats; selected entries have an Awakening. This is an expanded prototype roster, not yet every Storm 4 costume/form.
 - 13 move types (dash strike, clone barrage, projectile, spread, homing, ninken barrage, telegraphed ground strike, wide slash, area push, teleport strike, heal, burn, Kamui phase).
 - Ultimates with cinematic camera and per-character effects.
 - Support characters: L + Square calls a partner strike when the green support bar is full. Free Battle assigns up to two support partners.
@@ -60,7 +60,7 @@ Unlock order: Ch1 -> Ch2 -> Ch3 -> Ch4 -> Ch5 -> Ch6. All missions are simplifie
 
 ## Storm-style combat pass (prototype)
 - Added a homing chakra dash with a dash-hit that can start a melee combo.
-- Expanded the selectable roster from 8 to 16, adding Minato, Itachi, Pain, Gaara, Might Guy, Jiraiya, Orochimaru and Killer Bee, each with separate jutsu/ultimate data and extra silhouette details.
+- Expanded the selectable roster to 77 entries, including Naruto's One/Four/Six-Tails and Kurama/Six Paths forms; Sasuke's young/Taka/Rinnegan/The Last forms; and many additional Leaf, Kage, Akatsuki, jinchuriki and Boruto-era fighters. The new entries have distinct stats, named jutsu, Ultimate labels and chakra colors, using the project's procedural placeholder models.
 - Added a substitution escape during hit-stun, costing 10 chakra and granting brief invulnerability.
 - R-trigger alone remains an evasive ninja move.
 - This is inspired by the original game's combat rhythm, not an exact recreation; character animations, advanced combo routes, support switching and exact original move timing still need work. The newly added Team Ultimate is an original implementation inspired by the game's team attacks, not a frame-accurate recreation.
