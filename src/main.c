@@ -453,13 +453,23 @@ static int deal_damage(Fighter *t, Fighter *src, float dmg, int stun, float kb)
 
 static void melee_hit(Fighter *f, Fighter *o)
 {
-    static const float dmg[5] = { 0, 18, 18, 22, 40 };
-    static const int stn[5] = { 0, 8, 8, 10, 22 };
-    static const float kb[5] = { 0, 0.06f, 0.06f, 0.08f, 0.35f };
-    int c = f->combo;
+    /* Storm-style rising pressure across the four-hit basic combo. */
+    static const float dmg[5] = { 0, 18, 20, 26, 62 };
+    static const int stn[5] = { 0, 8, 8, 12, 26 };
+    static const float kb[5] = { 0, 0.06f, 0.06f, 0.12f, 0.48f };
+    int c = f->combo, hit;
     if (c < 1 || c > 4) return;
     if (dist_xz(f->x, f->z, o->x, o->z) <= 2.4f && fabsf(f->y - o->y) < 1.6f) {
-        if (deal_damage(o, f, dmg[c], stn[c], kb[c]) == 1) f->chakra = fminf(100.0f, f->chakra + 4.0f);
+        hit = deal_damage(o, f, dmg[c], stn[c], kb[c]);
+        if (hit == 1) f->chakra = fminf(100.0f, f->chakra + (c == 4 ? 8.0f : 4.0f));
+        if (hit == 1 && c == 3) {
+            spawn_fx(o->x, o->y + 1.2f, o->z, RGB(220,235,255), 10);
+            if (shake < 0.10f) shake = 0.10f;
+        }
+        if (hit == 1 && c == 4) {
+            spawn_fx(o->x, o->y + 1.3f, o->z, roster[f->def].orb, 18);
+            if (shake < 0.22f) shake = 0.22f;
+        }
     }
 }
 
@@ -1302,6 +1312,21 @@ static void draw_fighter(const Fighter *f)
         part(f,  0.56f, 1.38f,  sw * 0.5f, 0.22f, 0.60f, 0.26f, body);
         part(f, -0.56f, 1.00f, -sw * 0.5f, 0.20f, 0.20f, 0.20f, skin);
         part(f,  0.56f, 1.00f,  sw * 0.5f, 0.20f, 0.20f, 0.20f, skin);
+    }
+
+    if (f->state == FS_ATTACK) {
+        int t = f->timer;
+        /* Give combo hits different silhouettes: cross-kick, spinning sweep, then heavy finisher. */
+        if (f->combo == 2 && t >= 3 && t <= 9) {
+            part(f, 0.22f, 0.62f, 0.64f, 0.25f, 0.24f, 0.92f, acc);
+            part(f, 0.22f, 0.62f, 1.10f, 0.30f, 0.26f, 0.30f, dark);
+        } else if (f->combo == 3 && t >= 3 && t <= 9) {
+            gfx_box_rot(f->x + f->fx * 1.1f, 1.45f, f->z + f->fz * 1.1f,
+                        2.3f, 0.12f, 1.4f, atan2f(f->fx, f->fz) + frame * 0.08f, d->orb);
+        } else if (f->combo == 4 && t >= 2 && t <= 10) {
+            part(f, 0.0f, 1.45f, 1.05f, 0.72f, 0.72f, 0.85f, d->orb);
+            if ((t & 1) == 0) part(f, 0.0f, 1.45f, 1.45f, 0.44f, 0.44f, 0.50f, RGB(255,255,235));
+        }
     }
 
     if (mv) {
