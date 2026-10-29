@@ -11,7 +11,8 @@ void gfx_end(void);
 /* 3D */
 void gfx_3d(void);
 void gfx_camera(float ex, float ey, float ez, float cx, float cy, float cz);
-void gfx_tapered_box(float x, float y, float z, float w, float h, float d, float top_scale, unsigned color);\nvoid gfx_box(float x, float y, float z, float w, float h, float d, unsigned color);
+void gfx_tapered_box(float x, float y, float z, float w, float h, float d, float top_scale, unsigned color);
+void gfx_box(float x, float y, float z, float w, float h, float d, unsigned color);
 void gfx_ellipsoid(float x, float y, float z, float w, float h, float d, unsigned color);
 void gfx_box_rot(float x, float y, float z, float w, float h, float d, float yaw, unsigned color);
 
