@@ -10,7 +10,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#include <stdlib.h>
 #include "gfx.h"
 #include "model.h"
 
@@ -32,8 +31,6 @@ int model_test_run(void)
     unsigned prev = 0, pressed;
     SceCtrlData pad;
     char line[64];
-    ModelVertex *rest_vertices = NULL;
-    float walk_phase = 0.0f;
 
     gfx_init();
     sceCtrlSetSamplingCycle(0);
@@ -50,48 +47,12 @@ int model_test_run(void)
         tsrc = "EMBEDDED";
     }
 
-    if (mr == 0) {
-        rest_vertices = (ModelVertex *)malloc(m.vertex_count * sizeof(ModelVertex));
-        if (rest_vertices) memcpy(rest_vertices, m.vertices, m.vertex_count * sizeof(ModelVertex));
-    }
-
     for (;;) {
-        unsigned int i;
-        float swing;
         sceCtrlPeekBufferPositive(&pad, 1);
-        walk_phase += 0.075f;
-        swing = sinf(walk_phase) * 0.22f;
-        if (rest_vertices) {
-            for (i = 0; i < m.vertex_count; ++i) {
-                const ModelVertex *src = &rest_vertices[i];
-                ModelVertex *dst = &m.vertices[i];
-                float pivot = 0.0f, angle = 0.0f;
-                float dy, sn, cs;
-                *dst = *src;
-                /* Opposing leg and arm swings create a simple walk-in-place cycle.
-                   Geometry is scaled to 1.66 units by the asset generator. */
-                if (src->y < 0.51f) {
-                    pivot = 0.045f;
-                    angle = (src->x < 0.0f) ? swing : -swing;
-                } else if (src->y > 0.52f && src->y < 0.99f &&
-                           (src->x > 0.20f || src->x < -0.20f)) {
-                    pivot = 0.60f;
-                    angle = (src->x < 0.0f) ? -swing : swing;
-                }
-                if (angle != 0.0f) {
-                    dy = src->y - pivot;
-                    sn = sinf(angle);
-                    cs = cosf(angle);
-                    dst->y = pivot + dy * cs - src->z * sn;
-                    dst->z = src->z * cs + dy * sn;
-                }
-            }
-            sceKernelDcacheWritebackInvalidateRange(m.vertices,
-                m.vertex_count * sizeof(ModelVertex));
-        }
         pressed = pad.Buttons & ~prev;
         prev = pad.Buttons;
-        if (pressed & (PSP_CTRL_CROSS | PSP_CTRL_START)) break;
+        if (pressed & PSP_CTRL_CROSS) yaw = 0.0f;
+        if (pressed & PSP_CTRL_START) spin = !spin;
         if (pressed & PSP_CTRL_TRIANGLE) use_tex = !use_tex;
         if (pressed & PSP_CTRL_SQUARE) spin = !spin;
         if (pad.Buttons & PSP_CTRL_LEFT)  yaw -= 0.05f;
@@ -110,7 +71,7 @@ int model_test_run(void)
         }
 
         gfx_2d();
-        gfx_text(10, 8, 2, RGB(255, 220, 100), "CHARACTER WALK CYCLE - 1.66M TARGET");
+        gfx_text(10, 8, 2, RGB(255, 220, 100), "CHARACTER MODEL VIEWER - 1.66M TARGET");
         if (mr == 0) {
             sprintf(line, "MESH: %s  %u TRIANGLES", msrc, m.vertex_count / 3);
             gfx_text(10, 30, 1, RGB(200, 230, 255), line);
@@ -121,12 +82,11 @@ int model_test_run(void)
         if (tr == 0) sprintf(line, "TEXTURE: %s %ux%u %s", tsrc, tex.width, tex.height, use_tex ? "ON" : "OFF");
         else sprintf(line, "TEXTURE LOAD FAILED: CODE %d", tr);
         gfx_text(10, 42, 1, RGB(200, 230, 255), line);
-        gfx_text(10, 240, 1, RGB(220, 220, 220), "LEFT/RIGHT: ROTATE   SQUARE: SPIN   TRIANGLE: TEXTURE");
-        gfx_text(10, 254, 1, RGB(255, 220, 100), "CROSS OR START: CONTINUE TO GAME");
+        gfx_text(10, 240, 1, RGB(220, 220, 220), "LEFT/RIGHT: ROTATE   SQUARE: SPIN   START: AUTO ROTATE");
+        gfx_text(10, 254, 1, RGB(255, 220, 100), "CROSS: RESET VIEW   (GAME MENU DISABLED)");
         gfx_end();
     }
 
-    if (rest_vertices) free(rest_vertices);
     model_free(&m);
     model_texture_free(&tex);
     return 0;
