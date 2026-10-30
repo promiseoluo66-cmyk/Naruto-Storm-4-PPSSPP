@@ -18,6 +18,8 @@ extern const unsigned int test_character_nmdl_size;
 extern const unsigned char test_character_nmtx[];
 extern const unsigned int test_character_nmtx_size;
 
+#define IMPORT_MODEL_FILE "assets/chr/test/naruto_import.nmdl"
+#define IMPORT_TEX_FILE   "assets/chr/test/naruto_import.nmtx"
 #define MODEL_FILE "assets/chr/test/test_character.nmdl"
 #define TEX_FILE   "assets/chr/test/test_texture.nmtx"
 
@@ -25,7 +27,7 @@ int model_test_run(void)
 {
     Model m;
     ModelTexture tex;
-    const char *msrc = "FILE", *tsrc = "FILE";
+    const char *msrc = "IMPORTED", *tsrc = "IMPORTED";
     int mr, tr, use_tex = 1, spin = 1;
     float yaw = 0.0f;
     unsigned prev = 0, pressed;
@@ -36,15 +38,23 @@ int model_test_run(void)
     sceCtrlSetSamplingCycle(0);
     sceCtrlSetSamplingMode(PSP_CTRL_MODE_ANALOG);
 
-    mr = model_load(&m, MODEL_FILE);
+    mr = model_load(&m, IMPORT_MODEL_FILE);
     if (mr < 0) {
-        mr = model_load_memory(&m, test_character_nmdl, test_character_nmdl_size);
-        msrc = "EMBEDDED";
+        msrc = "FILE";
+        mr = model_load(&m, MODEL_FILE);
     }
-    tr = model_texture_load(&tex, TEX_FILE);
+    if (mr < 0) {
+        msrc = "EMBEDDED";
+        mr = model_load_memory(&m, test_character_nmdl, test_character_nmdl_size);
+    }
+    tr = model_texture_load(&tex, IMPORT_TEX_FILE);
     if (tr < 0) {
-        tr = model_texture_load_memory(&tex, test_character_nmtx, test_character_nmtx_size);
+        tsrc = "FILE";
+        tr = model_texture_load(&tex, TEX_FILE);
+    }
+    if (tr < 0) {
         tsrc = "EMBEDDED";
+        tr = model_texture_load_memory(&tex, test_character_nmtx, test_character_nmtx_size);
     }
 
     for (;;) {
