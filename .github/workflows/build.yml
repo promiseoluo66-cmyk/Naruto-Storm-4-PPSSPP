@@ -86,8 +86,8 @@ jobs:
           body: |
             Installable PSP folder: extract NarutoStorm4-PSP.zip and copy its PSP folder to the root of your PSP memory stick or PPSSPP memory stick directory.
             EBOOT.PBP is also provided separately.
-            This build starts with a MODEL TEST screen (original test character); press X to continue to the game.
-            Untested prototype build; test in PPSSPP before treating gameplay as verified.
+            This build starts directly in the character model viewer. The unfinished prototype game menu is disabled.
+            Character viewer build; test in PPSSPP. A proper skeletal walk animation is not included yet.
           prerelease: true
           files: |
             EBOOT.PBP
