@@ -24,6 +24,8 @@ void gfx_init(void)
     void *fbp1 = (void *)(BUF_W * SCR_H * 4);
     void *zbp  = (void *)(BUF_W * SCR_H * 4 * 2);
 
+    /* Set the PSP LCD mode before configuring the GU framebuffers. */
+    sceDisplaySetMode(0, SCR_W, SCR_H);
     sceGuInit();
     sceGuStart(GU_DIRECT, list);
     sceGuDrawBuffer(GU_PSM_8888, fbp0, BUF_W);
