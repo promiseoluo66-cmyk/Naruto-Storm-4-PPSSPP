@@ -123,6 +123,44 @@ jobs:
                       print("SMD FIRST BONE NODES:", node_lines[:16])
           PY
 
+      - name: Prepare imported OBJ and inspect texture inputs (temporary only)
+        run: |
+          python3 - <<'PY'
+          import io, zipfile, struct
+          outer_path = "assets/chr/test/naruto-shippuden-naruto.zip"
+          with zipfile.ZipFile(outer_path) as outer:
+              nested = next((n for n in outer.namelist() if n.lower().endswith(".zip")), None)
+              if not nested: raise SystemExit("Nested model archive not found")
+              with zipfile.ZipFile(io.BytesIO(outer.read(nested))) as inner:
+                  names = inner.namelist()
+                  print("INNER ARCHIVE EXTRACTED IN MEMORY — no model files copied into build/release")
+                  for name in names:
+                      low = name.lower()
+                      if low.endswith(".png"):
+                          data = inner.read(name)
+                          dims = "unknown dimensions"
+                          if data[:8] == bytes([137,80,78,71,13,10,26,10]) and len(data) >= 24:
+                              w, h = struct.unpack(">II", data[16:24])
+                              dims = "%dx%d" % (w, h)
+                          print("TEXTURE:", name, "bytes=", len(data), "dimensions=", dims)
+                  obj = next((n for n in names if n.endswith("/Naruto.obj")), None)
+                  mtl = next((n for n in names if n.endswith("/Naruto.mtl")), None)
+                  if not obj or not mtl: raise SystemExit("Expected Naruto OBJ/MTL missing")
+                  obj_text = inner.read(obj).decode("utf-8", "replace")
+                  counts = {"v":0, "vt":0, "vn":0, "f":0}
+                  used = []
+                  for raw in obj_text.splitlines():
+                      p = raw.strip().split()
+                      if not p: continue
+                      if p[0] in counts: counts[p[0]] += 1
+                      if p[0] == "usemtl" and len(p) > 1 and p[1] not in used: used.append(p[1])
+                  print("OBJ:", obj, counts)
+                  print("OBJ MATERIAL SLOTS:", used)
+                  print("MTL TEXTURE REFERENCES:")
+                  for raw in inner.read(mtl).decode("utf-8", "replace").splitlines():
+                      p = raw.strip().split()
+                      if p and p[0] in ("newmtl", "map_Kd", "Kd"): print(" ", raw.strip())
+          PY
       - name: Build
         run: |
           make clean
