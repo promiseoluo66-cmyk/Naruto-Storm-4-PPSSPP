@@ -33,6 +33,96 @@ jobs:
           fi
           python3 --version
 
+      - name: Inspect uploaded Naruto model archive (read-only)
+        run: |
+          python3 - <<'PY'
+          import io, zipfile
+          from pathlib import PurePosixPath
+
+          outer_path = "assets/chr/test/naruto-shippuden-naruto.zip"
+          with zipfile.ZipFile(outer_path) as outer:
+              nested_names = [n for n in outer.namelist() if n.lower().endswith(".zip")]
+              if not nested_names:
+                  raise SystemExit("No nested ZIP found in uploaded archive")
+              nested_name = nested_names[0]
+              print("NESTED ARCHIVE:", nested_name)
+              with zipfile.ZipFile(io.BytesIO(outer.read(nested_name))) as inner:
+                  names = inner.namelist()
+                  print("MODEL FILES:")
+                  for n in names:
+                      low = n.lower()
+                      if low.endswith((".obj", ".mtl", ".smd")):
+                          print(" ", n, inner.getinfo(n).file_size, "bytes")
+
+                  obj_name = next((n for n in names if n.endswith("/Naruto.obj")), None)
+                  mtl_name = next((n for n in names if n.endswith("/Naruto.mtl")), None)
+                  smd_name = next((n for n in names if n.endswith("/Naruto.smd")), None)
+
+                  if obj_name:
+                      verts, uvs, norms, faces, triangles, materials = 0, 0, 0, 0, 0, []
+                      mins = [float("inf")] * 3
+                      maxs = [float("-inf")] * 3
+                      for raw in inner.read(obj_name).decode("utf-8", "replace").splitlines():
+                          p = raw.strip().split()
+                          if not p:
+                              continue
+                          if p[0] == "v" and len(p) >= 4:
+                              verts += 1
+                              xyz = [float(x) for x in p[1:4]]
+                              for i, x in enumerate(xyz):
+                                  mins[i] = min(mins[i], x)
+                                  maxs[i] = max(maxs[i], x)
+                          elif p[0] == "vt":
+                              uvs += 1
+                          elif p[0] == "vn":
+                              norms += 1
+                          elif p[0] == "f":
+                              faces += 1
+                              triangles += max(0, len(p) - 3)
+                          elif p[0] == "usemtl" and len(p) > 1 and p[1] not in materials:
+                              materials.append(p[1])
+                      print("OBJ:", obj_name, "vertices=", verts, "uvs=", uvs,
+                            "normals=", norms, "faces=", faces, "triangles_after_triangulation=", triangles)
+                      if verts:
+                          print("OBJ BOUNDS min=", mins, "max=", maxs)
+                      print("OBJ MATERIAL SLOTS:", materials)
+                  if mtl_name:
+                      print("MTL REFERENCES:")
+                      for raw in inner.read(mtl_name).decode("utf-8", "replace").splitlines():
+                          p = raw.strip().split()
+                          if p and p[0] in ("newmtl", "map_Kd", "Kd"):
+                              print(" ", raw.strip())
+                  if smd_name:
+                      smd = inner.read(smd_name).decode("utf-8", "replace").splitlines()
+                      nodes = [x.strip() for x in smd if x.strip().startswith("nodes")]
+                      skeleton = [x.strip() for x in smd if x.strip().startswith("skeleton")]
+                      triangles_at = next((i for i,x in enumerate(smd) if x.strip() == "triangles"), None)
+                      node_lines = []
+                      in_nodes = False
+                      for x in smd:
+                          if x.strip() == "nodes":
+                              in_nodes = True
+                              continue
+                          if in_nodes and x.strip() == "end":
+                              break
+                          if in_nodes and x.strip():
+                              node_lines.append(x.strip())
+                      tri_count = 0
+                      if triangles_at is not None:
+                          i = triangles_at + 1
+                          while i < len(smd) and smd[i].strip() != "end":
+                              material = smd[i].strip()
+                              if not material:
+                                  i += 1
+                                  continue
+                              tri_count += 1
+                              i += 4
+                      print("SMD:", smd_name, "lines=", len(smd),
+                            "nodes_sections=", len(nodes), "skeleton_sections=", len(skeleton),
+                            "bone_nodes=", len(node_lines), "triangle_records=", tri_count)
+                      print("SMD FIRST BONE NODES:", node_lines[:16])
+          PY
+
       - name: Build
         run: |
           make clean
