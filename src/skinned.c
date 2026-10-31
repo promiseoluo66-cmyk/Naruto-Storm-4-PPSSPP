@@ -65,29 +65,77 @@ static void mat_inverse_rigid(float out[12], const float m[12])
     out[11] = -(out[8] * m[3] + out[9] * m[7] + out[10] * m[11]);
 }
 
-static void mat_rotation(float out[12], int axis, float angle)
+static float clamp01(float v)
 {
-    float c = cosf(angle), s = sinf(angle);
-    mat_identity(out);
-    if (axis == 0) {
-        out[5] = c; out[6] = -s;
-        out[9] = s; out[10] = c;
-    } else if (axis == 1) {
-        out[0] = c; out[2] = s;
-        out[8] = -s; out[10] = c;
-    } else {
-        out[0] = c; out[1] = -s;
-        out[4] = s; out[5] = c;
-    }
+    if (v < 0.0f) return 0.0f;
+    if (v > 1.0f) return 1.0f;
+    return v;
 }
 
-static void rotate_local(float m[12], int axis, float angle)
+static float smooth01(float t)
 {
-    float r[12], out[12];
+    t = clamp01(t);
+    return t * t * (3.0f - 2.0f * t);
+}
+
+static float lerp(float a, float b, float t)
+{
+    return a + (b - a) * t;
+}
+
+/* Wind-up -> contact -> recovery curve, with eased joins. */
+static float strike_curve(float t)
+{
+    if (t < 0.22f) return lerp(0.0f, 0.16f, smooth01(t / 0.22f));
+    if (t < 0.50f) return lerp(0.16f, 1.0f, smooth01((t - 0.22f) / 0.28f));
+    return lerp(1.0f, 0.0f, smooth01((t - 0.50f) / 0.50f));
+}
+
+/* Rodrigues rotation, expressed around an arbitrary bone-local unit axis. */
+static void mat_axis_rotation(float out[12], float x, float y, float z, float angle)
+{
+    float len = sqrtf(x * x + y * y + z * z);
+    float c, s, t;
+    if (len < 0.00001f || fabsf(angle) < 0.00001f) {
+        mat_identity(out);
+        return;
+    }
+    x /= len; y /= len; z /= len;
+    c = cosf(angle); s = sinf(angle); t = 1.0f - c;
+    mat_identity(out);
+    out[0] = t*x*x + c;
+    out[1] = t*x*y - s*z;
+    out[2] = t*x*z + s*y;
+    out[4] = t*x*y + s*z;
+    out[5] = t*y*y + c;
+    out[6] = t*y*z - s*x;
+    out[8] = t*x*z - s*y;
+    out[9] = t*y*z + s*x;
+    out[10] = t*z*z + c;
+}
+
+/*
+ * Rotate around a fixed character/model-space axis, not an assumed local X/Y/Z.
+ * The SMD importer stores source coordinates; the renderer later maps source
+ * (x,y,z) to game (x,z,-y). Therefore:
+ *   model right = source +X, model up = source +Z, model forward = source -Y.
+ * Transform the requested model-space axis through the transpose of the bone's
+ * bind orientation before post-multiplying its local bind matrix.
+ */
+static void rotate_model_axis(const SkinBone *bone, float local[12],
+                              float ax, float ay, float az, float angle)
+{
+    float lx, ly, lz, r[12], out[12];
     if (fabsf(angle) < 0.00001f) return;
-    mat_rotation(r, axis, angle);
-    mat_mul(out, m, r);
-    memcpy(m, out, sizeof(out));
+    lx = bone->bind_global[0] * ax + bone->bind_global[4] * ay +
+         bone->bind_global[8] * az;
+    ly = bone->bind_global[1] * ax + bone->bind_global[5] * ay +
+         bone->bind_global[9] * az;
+    lz = bone->bind_global[2] * ax + bone->bind_global[6] * ay +
+         bone->bind_global[10] * az;
+    mat_axis_rotation(r, lx, ly, lz, angle);
+    mat_mul(out, local, r);
+    memcpy(local, out, sizeof(out));
 }
 
 static int name_is(const char *a, const char *b)
@@ -95,60 +143,253 @@ static int name_is(const char *a, const char *b)
     return strcmp(a, b) == 0;
 }
 
+/* Side sign comes from the extracted rig: L joints are on +source-X, R on -X. */
+static float joint_side(const char *name)
+{
+    return name[0] == 'L' ? 1.0f : -1.0f;
+}
+
 static void pose_bone(const SkinBone *bone, float local[12], const SkinPose *pose)
 {
     const char *n = bone->name;
-    float wave = sinf(pose->phase * 2.6f);
-    float t = (float)pose->timer;
-    float pulse = sinf(fminf(t / 12.0f, 1.0f) * 3.14159265f);
-    float lead = ((pose->combo + pose->combo_dir) & 1) ? -1.0f : 1.0f;
-    float a = 0.0f;
+    const float up_x = 0.0f, up_y = 0.0f, up_z = 1.0f;
+    const float lateral_x = 1.0f, lateral_y = 0.0f, lateral_z = 0.0f;
+    const float depth_x = 0.0f, depth_y = 1.0f, depth_z = 0.0f;
+    float gait = sinf(pose->phase * 0.55f);
+    float strike = strike_curve((float)pose->timer /
+                                (pose->combo == 4 ? 18.0f : 12.0f));
+    float air = clamp01(pose->height / 2.35f);
+    float side, yaw = 0.0f, elbow = 0.0f, lift = 0.0f;
+    float thigh = 0.0f, knee = 0.0f, foot = 0.0f;
+    float attack_body = strike;
+    int attacking = pose->action == SKIN_ACTION_ATTACK;
+    int running = pose->action == SKIN_ACTION_RUN;
 
-    if (name_is(n, "L_harm") || name_is(n, "R_harm")) {
-        float side = name_is(n, "L_harm") ? -1.0f : 1.0f;
-        if (pose->action == SKIN_ACTION_RUN) a = side * 0.52f * wave;
-        else if (pose->action == SKIN_ACTION_ATTACK)
-            a = side * lead * 1.15f * pulse;
-        else if (pose->action == SKIN_ACTION_JUTSU) a = side * 0.85f;
-        else if (pose->action == SKIN_ACTION_JUMP) a = side * 0.90f;
-        else if (pose->action == SKIN_ACTION_GUARD) a = side * 0.62f;
-        else if (pose->action == SKIN_ACTION_DASH) a = -side * 0.85f;
-        rotate_local(local, 2, a);
-    } else if (name_is(n, "L_larm") || name_is(n, "R_larm")) {
-        float side = name_is(n, "L_larm") ? -1.0f : 1.0f;
-        if (pose->action == SKIN_ACTION_RUN) a = 0.15f + 0.18f * wave;
-        else if (pose->action == SKIN_ACTION_ATTACK) a = -lead * 0.95f * pulse;
-        else if (pose->action == SKIN_ACTION_JUTSU) a = -0.95f;
-        else if (pose->action == SKIN_ACTION_JUMP) a = -0.35f;
-        else if (pose->action == SKIN_ACTION_GUARD) a = -1.05f;
-        else if (pose->action == SKIN_ACTION_DASH) a = 0.15f;
-        rotate_local(local, 2, a * side);
-    } else if (name_is(n, "L_hleg") || name_is(n, "R_hleg")) {
-        float side = name_is(n, "L_hleg") ? -1.0f : 1.0f;
-        if (pose->action == SKIN_ACTION_RUN) a = side * 0.48f * wave;
-        else if (pose->action == SKIN_ACTION_JUMP) a = side * 0.28f;
-        else if (pose->action == SKIN_ACTION_ATTACK) a = side * 0.12f * pulse;
-        rotate_local(local, 0, a);
-    } else if (name_is(n, "L_lleg") || name_is(n, "R_lleg")) {
-        float side = name_is(n, "L_lleg") ? -1.0f : 1.0f;
-        if (pose->action == SKIN_ACTION_RUN) a = 0.52f + fmaxf(0.0f, -side * wave) * 0.45f;
-        else if (pose->action == SKIN_ACTION_JUMP) a = 0.72f;
-        rotate_local(local, 0, a);
-    } else if (name_is(n, "breast")) {
-        if (pose->action == SKIN_ACTION_IDLE) a = sinf(pose->phase * 0.055f) * 0.018f;
-        else if (pose->action == SKIN_ACTION_RUN) a = -0.12f;
-        else if (pose->action == SKIN_ACTION_ATTACK) a = lead * 0.22f * pulse;
-        else if (pose->action == SKIN_ACTION_DASH) a = -0.30f;
-        rotate_local(local, 0, a);
-    } else if (name_is(n, "waist")) {
-        if (pose->action == SKIN_ACTION_RUN) a = -0.08f;
-        else if (pose->action == SKIN_ACTION_ATTACK) a = lead * 0.13f * pulse;
-        else if (pose->action == SKIN_ACTION_DASH) a = -0.18f;
-        rotate_local(local, 0, a);
-    } else if (name_is(n, "head")) {
-        if (pose->action == SKIN_ACTION_IDLE) a = sinf(pose->phase * 0.037f) * 0.025f;
-        else if (pose->action == SKIN_ACTION_ATTACK) a = -lead * 0.16f * pulse;
-        rotate_local(local, 0, a);
+    if (name_is(n, "hip")) {
+        if (running) {
+            rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, 0.035f * gait);
+        } else if (attacking) {
+            float twist = pose->combo_dir > 0 ? -0.10f : 0.10f;
+            rotate_model_axis(bone, local, up_x, up_y, up_z, twist * attack_body);
+        } else if (pose->action == SKIN_ACTION_HIT) {
+            rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, -0.08f);
+        }
+        return;
+    }
+
+    if (name_is(n, "waist")) {
+        float lean = 0.0f;
+        if (running) lean = 0.16f;
+        else if (pose->action == SKIN_ACTION_DASH) lean = 0.27f;
+        else if (pose->action == SKIN_ACTION_JUMP) lean = -0.04f * air;
+        else if (pose->action == SKIN_ACTION_GUARD) lean = 0.06f;
+        else if (attacking) lean = 0.07f * attack_body;
+        else if (pose->action == SKIN_ACTION_HIT) lean = -0.18f;
+        rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, lean);
+        if (attacking)
+            rotate_model_axis(bone, local, up_x, up_y, up_z,
+                              (pose->combo_dir > 0 ? -0.12f : 0.12f) * attack_body);
+        return;
+    }
+
+    if (name_is(n, "breast")) {
+        float lean = 0.0f;
+        if (running) lean = 0.22f;
+        else if (pose->action == SKIN_ACTION_DASH) lean = 0.34f;
+        else if (pose->action == SKIN_ACTION_JUMP) lean = -0.08f * air;
+        else if (pose->action == SKIN_ACTION_GUARD) lean = 0.07f;
+        else if (attacking) lean = 0.12f * attack_body;
+        else if (pose->action == SKIN_ACTION_HIT) lean = -0.24f;
+        else lean = sinf(pose->phase * 0.11f) * 0.012f;
+        rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, lean);
+        return;
+    }
+
+    if (name_is(n, "neck") || name_is(n, "head")) {
+        float pitch = 0.0f, yaw_head = 0.0f;
+        if (running) pitch = -0.13f;
+        else if (pose->action == SKIN_ACTION_DASH) pitch = -0.18f;
+        else if (pose->action == SKIN_ACTION_JUMP) pitch = 0.04f * air;
+        else if (attacking) pitch = -0.10f * attack_body;
+        else if (pose->action == SKIN_ACTION_HIT) pitch = 0.18f;
+        if (name_is(n, "head")) pitch *= 0.70f;
+        if (attacking) yaw_head = (pose->combo_dir > 0 ? -0.08f : 0.08f) * attack_body;
+        rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, pitch);
+        rotate_model_axis(bone, local, up_x, up_y, up_z, yaw_head);
+        return;
+    }
+
+    if (name_is(n, "L_collar") || name_is(n, "R_collar")) {
+        side = joint_side(n);
+        if (running) {
+            rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, 0.035f);
+            rotate_model_axis(bone, local, up_x, up_y, up_z, side * 0.035f);
+        } else if (pose->action == SKIN_ACTION_GUARD) {
+            rotate_model_axis(bone, local, depth_x, depth_y, depth_z, -side * 0.08f);
+        } else if (attacking) {
+            rotate_model_axis(bone, local, up_x, up_y, up_z,
+                              -side * 0.07f * attack_body);
+        }
+        return;
+    }
+
+    if (name_is(n, "L_harm") || name_is(n, "R_harm") ||
+        name_is(n, "L_harmEX") || name_is(n, "R_harmEX")) {
+        side = joint_side(n);
+        if (running) {
+            /* Classic Naruto ninja run: both upper arms trail behind the torso. */
+            yaw = side * (1.28f + 0.055f * gait);
+            lift = 0.035f + 0.025f * gait;
+        } else if (pose->action == SKIN_ACTION_GUARD) {
+            yaw = -side * 0.62f;
+            lift = -side * 0.24f;
+        } else if (pose->action == SKIN_ACTION_JUMP) {
+            yaw = -side * 0.42f;
+            lift = -side * (0.55f + 0.22f * air);
+        } else if (pose->action == SKIN_ACTION_DASH) {
+            yaw = side * 1.08f;
+            lift = 0.10f;
+        } else if (pose->action == SKIN_ACTION_JUTSU) {
+            yaw = -side * (0.46f + 0.05f * sinf((float)pose->timer * 0.16f));
+            lift = -side * 0.12f;
+        } else if (pose->action == SKIN_ACTION_HIT) {
+            yaw = side * 0.34f;
+            lift = -side * 0.18f;
+        } else if (attacking) {
+            if (pose->combo_dir > 0) {
+                yaw = -side * (0.36f + 0.60f * strike);
+                lift = -side * (0.20f + 0.38f * strike);
+            } else if (pose->combo_dir < 0 || pose->combo == 3) {
+                yaw = -side * 0.32f;
+                lift = -side * 0.10f;
+            } else if (pose->combo == 1 && side < 0.0f) {
+                yaw = -side * (0.24f + 0.98f * strike);
+            } else if (pose->combo == 2 && side > 0.0f) {
+                yaw = -side * (0.24f + 0.98f * strike);
+            } else if (pose->combo == 4) {
+                yaw = -side * (0.28f + 0.75f * strike);
+            } else {
+                yaw = -side * 0.38f;
+                lift = -side * 0.08f;
+            }
+        } else {
+            /* Relaxed fighting guard: lead hand slightly farther forward. */
+            yaw = -side * (side < 0.0f ? 0.48f : 0.32f);
+            lift = -side * 0.08f;
+        }
+        if (strstr(n, "EX") != NULL) { yaw *= 0.45f; lift *= 0.45f; }
+        rotate_model_axis(bone, local, up_x, up_y, up_z, yaw);
+        rotate_model_axis(bone, local, depth_x, depth_y, depth_z, lift);
+        return;
+    }
+
+    if (name_is(n, "L_larm") || name_is(n, "R_larm") ||
+        name_is(n, "L_larmEX") || name_is(n, "R_larmEX")) {
+        side = joint_side(n);
+        if (running) elbow = side * (0.12f + 0.035f * gait);
+        else if (pose->action == SKIN_ACTION_GUARD) elbow = -side * 0.82f;
+        else if (pose->action == SKIN_ACTION_JUMP) elbow = -side * 0.48f;
+        else if (pose->action == SKIN_ACTION_DASH) elbow = side * 0.10f;
+        else if (pose->action == SKIN_ACTION_JUTSU) elbow = -side * 0.72f;
+        else if (pose->action == SKIN_ACTION_HIT) elbow = side * 0.20f;
+        else if (attacking) {
+            int striking_arm = (pose->combo == 1 && side < 0.0f) ||
+                               (pose->combo == 2 && side > 0.0f) ||
+                               pose->combo == 4 || pose->combo_dir > 0;
+            elbow = striking_arm ? -side * (0.62f - 0.50f * strike) : -side * 0.68f;
+            if (pose->combo == 3 || pose->combo_dir < 0) elbow = -side * 0.70f;
+        } else elbow = -side * 0.56f;
+        if (strstr(n, "EX") != NULL) elbow *= 0.45f;
+        rotate_model_axis(bone, local, up_x, up_y, up_z, elbow);
+        return;
+    }
+
+    if (name_is(n, "L_hand") || name_is(n, "R_hand")) {
+        side = joint_side(n);
+        if (running) rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, -0.035f);
+        else if (attacking) rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z,
+                                               -side * 0.10f * strike);
+        else if (pose->action == SKIN_ACTION_GUARD)
+            rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, -side * 0.08f);
+        return;
+    }
+
+    if (strstr(n, "_fin") != NULL) {
+        float curl = 0.0f;
+        if (pose->action == SKIN_ACTION_IDLE) curl = 0.08f;
+        else if (pose->action == SKIN_ACTION_GUARD || attacking) curl = 0.20f;
+        else if (pose->action == SKIN_ACTION_JUTSU) curl = 0.12f;
+        else if (pose->action == SKIN_ACTION_RUN) curl = 0.015f; /* open, trailing hands */
+        if (n[0] == 'R') curl = -curl;
+        rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, curl);
+        return;
+    }
+
+    if (name_is(n, "L_hleg") || name_is(n, "R_hleg") ||
+        name_is(n, "L_hlegEX") || name_is(n, "R_hlegEX")) {
+        side = joint_side(n);
+        if (running) thigh = -side * 0.42f * gait;
+        else if (pose->action == SKIN_ACTION_JUMP) thigh = -side * (0.30f + 0.34f * air);
+        else if (pose->action == SKIN_ACTION_DASH) thigh = -side * 0.24f;
+        else if (pose->action == SKIN_ACTION_HIT) thigh = side * 0.12f;
+        else if (attacking && pose->combo == 3 && side < 0.0f)
+            thigh = side * (0.15f + 1.05f * strike);
+        else if (attacking && pose->combo_dir < 0 && side < 0.0f)
+            thigh = side * (0.10f + 0.78f * strike);
+        else if (attacking) thigh = -side * 0.05f * strike;
+        else thigh = -side * 0.035f;
+        if (strstr(n, "EX") != NULL) thigh *= 0.55f;
+        rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, thigh);
+        return;
+    }
+
+    if (name_is(n, "L_lleg") || name_is(n, "R_lleg")) {
+        side = joint_side(n);
+        if (running) knee = 0.10f + 0.52f * fmaxf(0.0f, -side * gait);
+        else if (pose->action == SKIN_ACTION_JUMP) knee = 0.48f + 0.30f * air;
+        else if (attacking && pose->combo == 3 && side < 0.0f)
+            knee = lerp(0.54f, 0.04f, strike);
+        else if (attacking && pose->combo_dir < 0 && side < 0.0f)
+            knee = 0.22f + 0.35f * strike;
+        else if (pose->action == SKIN_ACTION_HIT) knee = 0.20f;
+        else knee = 0.08f;
+        rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, knee);
+        return;
+    }
+
+    if (name_is(n, "L_foot") || name_is(n, "R_foot")) {
+        side = joint_side(n);
+        if (running) {
+            thigh = -side * 0.42f * gait;
+            knee = 0.10f + 0.52f * fmaxf(0.0f, -side * gait);
+            foot = -0.48f * thigh - 0.38f * knee;
+        } else if (pose->action == SKIN_ACTION_JUMP) {
+            thigh = -side * (0.30f + 0.34f * air);
+            knee = 0.48f + 0.30f * air;
+            foot = -0.30f * thigh - 0.55f * knee;
+        } else if (attacking && pose->combo == 3 && side < 0.0f) {
+            thigh = side * (0.15f + 1.05f * strike);
+            foot = -0.22f * thigh;
+        } else foot = -0.06f;
+        rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, foot);
+        return;
+    }
+
+    if (name_is(n, "L_toe") || name_is(n, "R_toe")) {
+        side = joint_side(n);
+        if (running) {
+            thigh = -side * 0.42f * gait;
+            knee = 0.10f + 0.52f * fmaxf(0.0f, -side * gait);
+            foot = -0.48f * thigh - 0.38f * knee;
+        } else foot = 0.0f;
+        rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, foot * 0.55f);
+        return;
+    }
+
+    /* Hair and tail strands use tiny secondary motion; face/attachment nodes stay bound. */
+    if (strstr(n, "hr") != NULL && running) {
+        float phase = pose->phase * 0.55f + (float)bone->parent * 0.07f;
+        rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, sinf(phase) * 0.045f);
     }
 }
 
@@ -212,6 +453,7 @@ int skinned_mesh_load(SkinnedMesh *mesh, const char *mesh_path,
             memcpy(bind_global[i], disk.local_bind, sizeof(disk.local_bind));
         else
             mat_mul(bind_global[i], bind_global[disk.parent], disk.local_bind);
+        memcpy(mesh->bones[i].bind_global, bind_global[i], sizeof(bind_global[i]));
         mat_inverse_rigid(mesh->bones[i].inverse_bind, bind_global[i]);
     }
 
