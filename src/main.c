@@ -405,7 +405,7 @@ static int character_unlocked(int i)
 typedef enum { FS_IDLE, FS_ATTACK, FS_JUTSU, FS_CHARGE, FS_DASH, FS_ULT, FS_TEAM, FS_AWAKEN } FState;
 
 typedef struct {
-    int def, is_ai;
+    int def, is_ai, moving;
     float x, y, z, vy, fx, fz;
     float hp, maxhp, chakra, dmg_mult, spd_mult, awm, supm;
     FState state;
@@ -745,6 +745,7 @@ static void fighter_update(Fighter *f, Fighter *o, const Input *in)
     f->fx = dx / dist; f->fz = dz / dist;
     rx = -f->fz; rz = f->fx;
     f->guarding = 0;
+    f->moving = 0;
     if (f->dead) { f->y = 0; return; }
     if (f->burn > 0) {
         f->burn--;
@@ -789,6 +790,7 @@ static void fighter_update(Fighter *f, Fighter *o, const Input *in)
                 if (in->guard) { f->guarding = 1; sp *= 0.4f; }
                 f->x += mx * sp; f->z += mz * sp;
                 f->phase += ml * 0.35f;
+                f->moving = (ml > 0.08f && !in->guard);
                 if (try_special(f, in)) break;
                 if (in->jump && !in->chakra_dash && f->y <= 0.001f) f->vy = 0.24f;
                 if (in->charge && !in->guard && !in->chakra_dash) { f->state = FS_CHARGE; f->timer = 0; }
@@ -1184,6 +1186,11 @@ static void battle_update(const SceCtrlData *pad, unsigned pressed)
 static void part(const Fighter *f, float rxo, float yo, float fzo, float w, float h, float dd, unsigned col)
 {
     float rx = -f->fz, rz = f->fx;
+    if (f->moving && yo > 1.0f) {
+        float hgt = yo - 1.0f;
+        fzo += hgt * 0.38f;
+        yo -= hgt * 0.10f;
+    }
     gfx_box_rot(f->x + rx * rxo + f->fx * fzo, f->y + yo, f->z + rz * rxo + f->fz * fzo,
                 w, h, dd, atan2f(f->fx, f->fz), col);
 }
@@ -1326,6 +1333,11 @@ static void fighter_local_point(const Fighter *f, float side, float y, float for
                                 float *x, float *wy, float *z)
 {
     float rx = -f->fz, rz = f->fx;
+    if (f->moving && y > 1.0f) {
+        float h = y - 1.0f;
+        forward += h * 0.38f;
+        y -= h * 0.10f;
+    }
     *x = f->x + rx * side + f->fx * forward;
     *wy = f->y + y;
     *z = f->z + rz * side + f->fz * forward;
@@ -1377,7 +1389,8 @@ static void draw_fighter(const Fighter *f)
     float sw = sinf(f->phase) * 0.35f;
     StormPose pose;
     int i, id = f->def;
-    storm_anim_evaluate(&pose, f->state == FS_ATTACK, f->combo, f->timer,
+    storm_anim_evaluate(&pose, f->state == FS_ATTACK,
+                        f->moving && f->state == FS_IDLE, f->combo, f->timer,
                         f->combo_dir, f->phase);
     const Move *mv = (f->state == FS_JUTSU) ? &d->jut[f->move] : NULL;
 
@@ -1423,7 +1436,10 @@ static void draw_fighter(const Fighter *f)
     }
     /* belt, torso, collar/neck */
     part(f, 0.0f, 1.02f, 0.0f, 0.80f, 0.16f, 0.46f, belt);
-    gfx_ellipsoid(f->x, 1.43f, f->z, 0.82f, 0.78f, 0.50f, body);
+    gfx_ellipsoid(f->x + f->fx * (f->moving ? 0.18f : 0.0f),
+                  f->moving ? 1.38f : 1.43f,
+                  f->z + f->fz * (f->moving ? 0.18f : 0.0f),
+                  0.82f, 0.78f, 0.50f, body);
     part(f, 0.0f, 1.62f, 0.23f, 0.52f, 0.14f, 0.04f, acc);
     part(f, 0.0f, 1.82f, 0.0f, 0.22f, 0.14f, 0.22f, skin);
     /* costume panel, seams and waist trim break up flat colors */
@@ -1437,11 +1453,16 @@ static void draw_fighter(const Fighter *f)
     part(f, -0.20f, 0.18f, 0.27f, 0.28f, 0.055f, 0.035f, acc);
     part(f,  0.20f, 0.18f, 0.27f, 0.28f, 0.055f, 0.035f, acc);
     /* shoulders */
-    gfx_ellipsoid(f->x - 0.52f, 1.68f, f->z, 0.36f, 0.32f, 0.40f, body);
-    gfx_ellipsoid(f->x + 0.52f, 1.68f, f->z, 0.36f, 0.32f, 0.40f, body);
+    gfx_ellipsoid(f->x - 0.52f + f->fx * (f->moving ? 0.25f : 0.0f), 1.60f,
+                  f->z + f->fz * (f->moving ? 0.25f : 0.0f), 0.36f, 0.32f, 0.40f, body);
+    gfx_ellipsoid(f->x + 0.52f + f->fx * (f->moving ? 0.25f : 0.0f), 1.60f,
+                  f->z + f->fz * (f->moving ? 0.25f : 0.0f), 0.36f, 0.32f, 0.40f, body);
 
     /* head: face, eyes, hair cap */
-    gfx_ellipsoid(f->x, 2.12f, f->z, 0.62f, 0.66f, 0.58f, skin);
+    gfx_ellipsoid(f->x + f->fx * (f->moving ? 0.40f : 0.0f),
+                  f->moving ? 2.00f : 2.12f,
+                  f->z + f->fz * (f->moving ? 0.40f : 0.0f),
+                  0.62f, 0.66f, 0.58f, skin);
     if (id != 6) {
         /* brows, eyes and a small nose bridge make faces read better at gameplay distance */
         part(f, -0.145f, 2.205f, 0.285f, 0.15f, 0.035f, 0.035f, hair);
@@ -1474,7 +1495,12 @@ static void draw_fighter(const Fighter *f)
                   0.20f, 0.13f, 0.28f, dark);
 
     /* Arms: smooth, articulated shoulder-elbow-wrist chains. */
-    if (f->guarding) {
+    if (f->moving && !f->guarding && f->state == FS_IDLE) {
+        float run_sway = sinf(f->phase * 2.6f) * 0.055f;
+        /* Classic ninja-run silhouette: both arms trail behind the shoulders. */
+        draw_pose_arm(f, -1.0f, -1.02f, -0.10f + run_sway, body, skin, acc);
+        draw_pose_arm(f,  1.0f, -1.02f, -0.10f - run_sway, body, skin, acc);
+    } else if (f->guarding) {
         draw_pose_arm(f, -1.0f, 0.25f, 0.20f, body, skin, acc);
         draw_pose_arm(f,  1.0f, 0.25f, 0.20f, body, skin, acc);
     } else {
