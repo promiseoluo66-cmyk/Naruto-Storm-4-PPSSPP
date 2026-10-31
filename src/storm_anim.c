@@ -29,13 +29,14 @@ static float track(float t, float v0, float v1, float v2, float v3)
     return segment(t, 0.56f, 1.0f, v2, v3);
 }
 
-void storm_anim_evaluate(StormPose *p, int attacking, int combo,
+void storm_anim_evaluate(StormPose *p, int attacking, int running, int combo,
                          int timer, int direction, float phase)
 {
     float gait;
     float t;
     if (!p) return;
 
+    p->spine_lean = 0.0f;
     p->r_arm_forward = 0.0f;
     p->l_arm_forward = 0.0f;
     p->r_arm_lift = 0.0f;
@@ -46,6 +47,15 @@ void storm_anim_evaluate(StormPose *p, int attacking, int combo,
     p->r_leg_lift = fmaxf(0.0f, sinf(phase)) * 0.10f;
     p->l_leg_lift = fmaxf(0.0f, -sinf(phase)) * 0.10f;
 
+    if (running && !attacking) {
+        /* Forward torso pitch; arm trail is rendered by the fighter rig. */
+        p->spine_lean = 1.05f;
+        p->r_arm_forward = -1.02f;
+        p->l_arm_forward = -1.02f;
+        p->r_arm_lift = sinf(phase * 2.6f) * 0.055f;
+        p->l_arm_lift = -p->r_arm_lift;
+        return;
+    }
     if (!attacking) return;
 
     p->r_leg_forward = p->l_leg_forward = 0.0f;
