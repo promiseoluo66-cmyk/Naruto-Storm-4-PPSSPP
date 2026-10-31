@@ -28,7 +28,9 @@ if "skinned_draw(&naruto_skin" not in s:
         memset(&pose, 0, sizeof(pose));
         pose.combo = f->combo; pose.timer = f->timer;
         pose.combo_dir = f->combo_dir; pose.phase = f->phase;
-        if (f->state == FS_ATTACK) pose.action = SKIN_ACTION_ATTACK;
+        pose.height = f->y; pose.vertical_velocity = f->vy;
+        if (f->stun > 0) pose.action = SKIN_ACTION_HIT;
+        else if (f->state == FS_ATTACK) pose.action = SKIN_ACTION_ATTACK;
         else if (f->state == FS_JUTSU || f->state == FS_ULT || f->state == FS_TEAM)
             pose.action = SKIN_ACTION_JUTSU;
         else if (f->y > 0.05f) pose.action = SKIN_ACTION_JUMP;
