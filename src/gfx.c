@@ -137,6 +137,52 @@ void gfx_box_rot(float x, float y, float z, float w, float h, float d, float yaw
 }
 
 
+/* Draw a box-shaped limb segment whose local +Z axis follows A -> B. */
+void gfx_segment(float ax, float ay, float az, float bx, float by, float bz,
+                 float thickness, unsigned color)
+{
+    float dx = bx - ax, dy = by - ay, dz = bz - az;
+    float horizontal = sqrtf(dx * dx + dz * dz);
+    float length = sqrtf(horizontal * horizontal + dy * dy);
+    float yaw, pitch;
+    ScePspFVector3 t;
+    Vtx *v;
+    static const float p[8][3] = {
+        {-0.5f,-0.5f,-0.5f},{0.5f,-0.5f,-0.5f},{0.5f,0.5f,-0.5f},{-0.5f,0.5f,-0.5f},
+        {-0.5f,-0.5f,0.5f},{0.5f,-0.5f,0.5f},{0.5f,0.5f,0.5f},{-0.5f,0.5f,0.5f}
+    };
+    static const int faces[6][4] = {
+        {0,1,2,3},{5,4,7,6},{4,0,3,7},{1,5,6,2},{3,2,6,7},{4,5,1,0}
+    };
+    static const int tri[6] = {0,1,2,0,2,3};
+    int face, k, n = 0;
+    if (length < 0.001f) return;
+    yaw = atan2f(dx, dz);
+    pitch = -atan2f(dy, horizontal > 0.001f ? horizontal : 0.001f);
+    t.x = (ax + bx) * 0.5f; t.y = (ay + by) * 0.5f; t.z = (az + bz) * 0.5f;
+    v = (Vtx *)sceGuGetMemory(36 * sizeof(Vtx));
+    for (face = 0; face < 6; ++face) {
+        for (k = 0; k < 6; ++k) {
+            int idx = faces[face][tri[k]];
+            v[n].color = color;
+            v[n].x = p[idx][0] * thickness;
+            v[n].y = p[idx][1] * thickness;
+            v[n].z = p[idx][2] * length;
+            ++n;
+        }
+    }
+    sceGumMatrixMode(GU_MODEL);
+    sceGumPushMatrix();
+    sceGumLoadIdentity();
+    sceGumTranslate(&t);
+    sceGumRotateY(yaw);
+    sceGumRotateX(pitch);
+    sceGumUpdateMatrix();
+    sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
+                   36, 0, v);
+    sceGumPopMatrix();
+}
+
 /* Rounded low-poly ellipsoid for more natural anime-style character silhouettes. */
 void gfx_ellipsoid(float x, float y, float z, float w, float h, float d, unsigned color)
 {
