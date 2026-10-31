@@ -75,14 +75,20 @@ static void mat_rotate_local_y(float m[12], float angle)
     }
 }
 
-static void setup_walk_pose(RiggedModel *model, float phase, float blend)
+static void setup_walk_pose(RiggedModel *model, float phase, float blend,
+                            int attack_combo, int attack_timer)
 {
-    float swing, left_knee, right_knee;
+    float swing, left_knee, right_knee, punch = 0.0f;
     unsigned int i;
 
     if (blend < 0.0f) blend = 0.0f;
     if (blend > 1.0f) blend = 1.0f;
     swing = sinf(phase) * 0.72f * blend;
+    if (attack_combo > 0 && attack_timer > 0 && attack_timer <= 9) {
+        if (attack_timer <= 2) punch = -0.18f * (float)attack_timer / 2.0f;
+        else if (attack_timer <= 5) punch = -0.18f + 0.46f * (float)(attack_timer - 2);
+        else punch = 1.20f * (1.0f - (float)(attack_timer - 5) / 4.0f);
+    }
     left_knee = fmaxf(0.0f, sinf(phase + 0.65f)) * 0.82f * blend;
     right_knee = fmaxf(0.0f, sinf(phase + 3.14159265f + 0.65f)) * 0.82f * blend;
 
@@ -97,11 +103,29 @@ static void setup_walk_pose(RiggedModel *model, float phase, float blend)
         mat_rotate_local_y(model->bones[19].current_local, right_knee);
         mat_rotate_local_y(model->bones[12].current_local, -left_knee * 0.22f);
         mat_rotate_local_y(model->bones[20].current_local, -right_knee * 0.22f);
-        mat_rotate_local_y(model->bones[44].current_local, -swing * 0.48f);
-        mat_rotate_local_y(model->bones[65].current_local, swing * 0.48f);
-        mat_rotate_local_y(model->bones[45].current_local, fmaxf(0.0f, swing) * 0.16f);
-        mat_rotate_local_y(model->bones[66].current_local, fmaxf(0.0f, -swing) * 0.16f);
-        mat_rotate_local_y(model->bones[41].current_local, swing * 0.035f);
+        if (attack_combo > 0 && punch != 0.0f) {
+            /* A basic strike alternates hands. The punch reaches full extension
+               on frame 5, exactly when melee_hit() checks the hit box. */
+            if ((attack_combo & 1) != 0) {
+                mat_rotate_local_y(model->bones[65].current_local, punch);
+                mat_rotate_local_y(model->bones[66].current_local, -punch * 0.12f);
+                mat_rotate_local_y(model->bones[67].current_local, punch * 0.08f);
+                mat_rotate_local_y(model->bones[44].current_local, -punch * 0.12f);
+            } else {
+                mat_rotate_local_y(model->bones[44].current_local, -punch);
+                mat_rotate_local_y(model->bones[45].current_local, punch * 0.12f);
+                mat_rotate_local_y(model->bones[46].current_local, -punch * 0.08f);
+                mat_rotate_local_y(model->bones[65].current_local, punch * 0.12f);
+            }
+            mat_rotate_local_y(model->bones[41].current_local,
+                               ((attack_combo & 1) ? 1.0f : -1.0f) * punch * 0.08f);
+        } else {
+            mat_rotate_local_y(model->bones[44].current_local, -swing * 0.48f);
+            mat_rotate_local_y(model->bones[65].current_local, swing * 0.48f);
+            mat_rotate_local_y(model->bones[45].current_local, fmaxf(0.0f, swing) * 0.16f);
+            mat_rotate_local_y(model->bones[66].current_local, fmaxf(0.0f, -swing) * 0.16f);
+            mat_rotate_local_y(model->bones[41].current_local, swing * 0.035f);
+        }
     }
 
     for (i = 0; i < model->bone_count; i++) {
@@ -210,21 +234,22 @@ int rigged_model_load(RiggedModel *model, const char *path)
     }
     sceIoClose(fd);
     model->loaded = 1;
-    setup_walk_pose(model, 0.0f, 0.0f);
+    setup_walk_pose(model, 0.0f, 0.0f, 0, 0);
     skin_vertices(model);
     return 0;
 }
 
 void rigged_model_draw(RiggedModel *model, const ModelTexture *texture,
                        float x, float y, float z, float yaw,
-                       float walk_phase, float move_blend, float scale)
+                       float walk_phase, float move_blend,
+                       int attack_combo, int attack_timer, float scale)
 {
     ScePspFVector3 position, scaling;
     unsigned int format = GU_TEXTURE_32BITF | GU_COLOR_8888 |
                           GU_VERTEX_32BITF | GU_TRANSFORM_3D;
     if (!model || !model->loaded || !model->skinned_vertices) return;
 
-    setup_walk_pose(model, walk_phase, move_blend);
+    setup_walk_pose(model, walk_phase, move_blend, attack_combo, attack_timer);
     skin_vertices(model);
     model_texture_bind(texture);
 
