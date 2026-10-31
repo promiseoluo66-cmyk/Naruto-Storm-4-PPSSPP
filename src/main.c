@@ -442,6 +442,7 @@ typedef enum {
 } GameState;
 static GameState gstate = GS_MENU;
 static int menu_sel = 0, select_idx = 0, select_mode = 0, story_mode = 0;
+static int training_mode = 0;
 static int cur_mission = 0, cur_arena = 0, story_row = 0, reset_confirm = 0;
 static int dlg_idx = 0, dlg_chars = 0, dlg_post = 0, cine_timer = 0;
 static int intro = 0, ko_timer = 0, paused = 0, player_won = 0, result_sel = 0, save_ok = 0;
@@ -1099,7 +1100,13 @@ static void battle_update(const SceCtrlData *pad, unsigned pressed)
 
     if (pressed & PSP_CTRL_START) paused = !paused;
     if (paused) {
-        if (pressed & PSP_CTRL_SELECT) { paused = 0; gstate = story_mode ? GS_STORY : GS_MENU; }
+        if (pressed & PSP_CTRL_SELECT) {
+            paused = 0;
+            if (training_mode) {
+                battle_start(0, 0, 0, 0, 1.0f, NULL, NULL);
+                intro = 90;
+            } else gstate = story_mode ? GS_STORY : GS_MENU;
+        }
         return;
     }
     if (msg_t > 0) msg_t--;
@@ -1109,12 +1116,14 @@ static void battle_update(const SceCtrlData *pad, unsigned pressed)
     if (cine_timer > 0) { cine_timer--; camera_update(0); return; }
 
     pin = read_input(pad, pressed);
-    ai_think(&en, &pl, &ein);
     if (pl.dead) memset(&pin, 0, sizeof(pin));
     fighter_update(&pl, &en, &pin);
-    fighter_update(&en, &pl, &ein);
-    if (pl.dead) en.frozen = 0;
-    if (en.dead) pl.frozen = 0;
+    if (!training_mode) {
+        ai_think(&en, &pl, &ein);
+        fighter_update(&en, &pl, &ein);
+        if (pl.dead) en.frozen = 0;
+        if (en.dead) pl.frozen = 0;
+    }
 
     dx = en.x - pl.x; dz = en.z - pl.z; dist = sqrtf(dx * dx + dz * dz);
     if (dist < 1.0f && dist > 0.001f) {
@@ -1151,6 +1160,15 @@ static void battle_update(const SceCtrlData *pad, unsigned pressed)
         }
     }
 
+    if (training_mode) {
+        /* Keep the second Naruto fixed in a neutral idle stance for animation testing. */
+        en.x = 4.0f; en.z = 0.0f; en.y = 0.0f;
+        en.fx = -1.0f; en.fz = 0.0f;
+        en.hp = en.maxhp; en.dead = 0; en.state = FS_IDLE; en.timer = 0;
+        en.moving = 0; en.hit_flash = 0; en.stun = 0; en.kbx = 0.0f; en.kbz = 0.0f;
+        en.frozen = 0; en.inv = 0; en.guarding = 0;
+    }
+
     if (story_mode && !en.dead) {
         const Mission *m = &missions[cur_mission];
         float ratio = en.hp / en.maxhp;
@@ -1169,7 +1187,7 @@ static void battle_update(const SceCtrlData *pad, unsigned pressed)
 
     camera_update(0);
 
-    if (pl.dead || en.dead) {
+    if (!training_mode && (pl.dead || en.dead)) {
         if (++ko_timer > 110) {
             player_won = en.dead && !pl.dead;
             result_sel = 0;
@@ -1966,337 +1984,31 @@ static unsigned speaker_color(const char *s)
     return RGB(255, 255, 255);
 }
 
-/* ---------------- main ---------------- */
+/* ---------------- free-battle training entry ---------------- */
 int main(void)
 {
     SceCtrlData pad;
     unsigned prev = 0, pressed;
-    static const char *items[4] = { "STORY MODE", "FREE BATTLE", "CHARACTERS", "EXIT" };
-    int i;
 
     setup_callbacks();
     gfx_init();
     sceCtrlSetSamplingCycle(0);
     sceCtrlSetSamplingMode(PSP_CTRL_MODE_ANALOG);
-    save_load();
+
+    /* Naruto controlled by the player vs a second Naruto held in idle. */
+    training_mode = 1;
+    battle_start(0, 0, 0, 0, 1.0f, NULL, NULL);
+    intro = 90;
 
     for (;;) {
         sceCtrlPeekBufferPositive(&pad, 1);
         pressed = pad.Buttons & ~prev;
         prev = pad.Buttons;
         frame++;
-        menu_angle += 0.02f;
-        if (note_t > 0) note_t--;
-
-        /* ---- update ---- */
-        switch (gstate) {
-        case GS_MENU:
-            if (pressed & PSP_CTRL_UP)   menu_sel = (menu_sel + 3) % 4;
-            if (pressed & PSP_CTRL_DOWN) menu_sel = (menu_sel + 1) % 4;
-            if (pressed & PSP_CTRL_CROSS) {
-                if (menu_sel == 3) sceKernelExitGame();
-                else if (menu_sel == 0) { reset_confirm = 0; gstate = GS_STORY; }
-                else { select_mode = (menu_sel == 2); gstate = GS_SELECT; }
-            }
-            break;
-        case GS_SELECT:
-            /* D-pad moves one tile; L/R moves exactly one 24-fighter page. */
-            if (pressed & PSP_CTRL_LEFT)  select_idx = (select_idx + NUM_CHARS - 1) % NUM_CHARS;
-            if (pressed & PSP_CTRL_RIGHT) select_idx = (select_idx + 1) % NUM_CHARS;
-            if (pressed & PSP_CTRL_UP)    select_idx = (select_idx + NUM_CHARS - 6) % NUM_CHARS;
-            if (pressed & PSP_CTRL_DOWN)  select_idx = (select_idx + 6) % NUM_CHARS;
-            if (pressed & PSP_CTRL_LTRIGGER) select_idx = (select_idx + NUM_CHARS - 24) % NUM_CHARS;
-            if (pressed & PSP_CTRL_RTRIGGER) select_idx = (select_idx + 24) % NUM_CHARS;
-            if (pressed & PSP_CTRL_CIRCLE) gstate = GS_MENU;
-            if ((pressed & PSP_CTRL_CROSS) && !select_mode) {
-                if (character_unlocked(select_idx)) start_free_battle(select_idx);
-                else set_note("CHARACTER LOCKED - SEE STORY MODE");
-            }
-            break;
-        case GS_STORY:
-            if (pressed & PSP_CTRL_UP)   { story_row = (story_row + NUM_ROWS - 1) % NUM_ROWS; reset_confirm = 0; }
-            if (pressed & PSP_CTRL_DOWN) { story_row = (story_row + 1) % NUM_ROWS; reset_confirm = 0; }
-            if (pressed & PSP_CTRL_CIRCLE) gstate = GS_MENU;
-            if (pressed & PSP_CTRL_SQUARE) {
-                if (++reset_confirm >= 2) {
-                    sv.completed = 0;
-                    set_note(save_write() ? "PROGRESS ERASED" : "PROGRESS ERASED (SAVE FILE NOT WRITTEN)");
-                    reset_confirm = 0;
-                } else set_note("PRESS SQUARE AGAIN TO ERASE PROGRESS");
-            }
-            if (pressed & PSP_CTRL_CROSS) {
-                int mi = row_mission[story_row];
-                if (mi < 0) set_note("THIS CHAPTER IS NOT BUILT YET");
-                else if (!mission_open(mi)) set_note("LOCKED - CLEAR THE PREVIOUS MISSION");
-                else start_mission_dialogue(mi);
-            }
-            break;
-        case GS_DIALOGUE: {
-            const Mission *m = &missions[cur_mission];
-            const Line *L = dlg_post ? m->post : m->pre;
-            int n = dlg_post ? m->post_n : m->pre_n;
-            int len = (int)strlen(L[dlg_idx].txt);
-            int done = 0;
-            if (dlg_chars < len) dlg_chars += 2;
-            if (pressed & PSP_CTRL_CROSS) {
-                if (dlg_chars < len) dlg_chars = len;
-                else { dlg_idx++; dlg_chars = 0; if (dlg_idx >= n) done = 1; }
-            }
-            if (pressed & PSP_CTRL_START) done = 1;
-            if (!dlg_post && (pressed & PSP_CTRL_CIRCLE)) gstate = GS_STORY;
-            else if (done) { if (dlg_post) finish_mission(); else start_mission_battle(); }
-        } break;
-        case GS_BATTLE:
-            battle_update(&pad, pressed);
-            break;
-        case GS_RESULT: {
-            int cnt = story_mode ? 3 : 2;
-            if (pressed & PSP_CTRL_UP)   result_sel = (result_sel + cnt - 1) % cnt;
-            if (pressed & PSP_CTRL_DOWN) result_sel = (result_sel + 1) % cnt;
-            if (pressed & PSP_CTRL_CROSS) {
-                if (result_sel == 0) {
-                    if (story_mode) start_mission_battle();
-                    else battle_start(pl.def, en.def, 0, cur_arena, 1.0f, pl.sup, en.sup);
-                } else if (story_mode && result_sel == 1) gstate = GS_STORY;
-                else gstate = GS_MENU;
-            }
-        } break;
-        case GS_COMPLETE:
-            if (pressed & PSP_CTRL_CROSS) gstate = GS_STORY;
-            break;
-        }
-
-        /* ---- render ---- */
-        switch (gstate) {
-        case GS_MENU: {
-            static const char *descs[4] = {
-                "FOLLOW THE SHINOBI STORY",
-                "CHOOSE YOUR FIGHTER AND BATTLE",
-                "VIEW THE AVAILABLE FIGHTERS",
-                "RETURN TO PPSSPP"
-            };
-            unsigned pulse = (unsigned)(35 + (sinf(frame * 0.08f) + 1.0f) * 20.0f);
-            gfx_begin(RGB(8, 10, 28));
-            gfx_2d();
-            gfx_gradient(0, 0, 480, 272, RGB(7, 10, 34), RGB(37, 20, 64));
-            /* Animated background slashes and framed panels. */
-            for (i = 0; i < 8; i++) {
-                float x = (float)((i * 83 + (int)(frame * 0.45f)) % 540) - 60.0f;
-                gfx_rect(x, 0, 1.0f, 272, RGBA(95, 115, 190, 24));
-            }
-            gfx_rect(8, 8, 464, 256, RGBA(4, 7, 22, 130));
-            gfx_rect(8, 8, 3, 256, RGB(255, 145, 35));
-            gfx_rect(15, 15, 450, 1, RGBA(255, 255, 255, 100));
-            gfx_rect(15, 256, 450, 1, RGBA(255, 255, 255, 70));
-            gfx_3d();
-            gfx_camera(2.5f, 2.5f, 7.0f, 2.5f, 1.2f, 0.0f);
-            gfx_box(2.5f, -0.05f, 0, 5.4f, 0.1f, 5.4f, RGB(46, 55, 90));
-            draw_preview((int)(frame / 180) % NUM_CHARS, menu_angle, 2.5f);
-            gfx_2d();
-            gfx_text(24, 20, 3, RGB(255, 155, 35), "NARUTO");
-            gfx_text(24, 43, 3, RGB(255, 255, 255), "STORM");
-            gfx_text(24, 66, 3, RGB(255, 220, 85), "SHINOBI ARENA");
-            gfx_rect(24, 94, 176, 2, RGB(255, 145, 35));
-            gfx_text(24, 103, 1, RGB(170, 195, 255), "MAIN BATTLE MENU");
-            for (i = 0; i < 4; i++) {
-                float y = 125.0f + i * 27.0f;
-                if (i == menu_sel) {
-                    gfx_rect(20, y - 4, 184, 23, RGBA(255, 135, 30, 215));
-                    gfx_rect(20, y - 4, 4, 23, RGB(255, 235, 155));
-                    gfx_text(31, y + 2, 2, RGB(15, 17, 35), items[i]);
-                } else {
-                    gfx_rect(20, y - 4, 184, 23, RGBA(25, 32, 68, 150));
-                    gfx_text(31, y + 2, 2, RGB(220, 225, 245), items[i]);
-                }
-            }
-            gfx_rect(220, 205, 240, 36, RGBA(4, 7, 20, 205));
-            gfx_text(230, 212, 1, RGB(255, 210, 115), descs[menu_sel]);
-            gfx_text(230, 228, 1, RGB(180, 195, 225), "PSP HOMEbrew FIGHTING PROJECT");
-            gfx_text(18, 264, 1, RGB(185, 195, 220), "UP/DOWN SELECT   CROSS CONFIRM");
-            gfx_text(391, 20, 1, RGB(255, 220, 100), "BUILD 0.2");
-            gfx_rect(455, 42, 2, 24 + (float)pulse * 0.3f, RGB(255, 150, 35));
-            gfx_end();
-            break;
-        }
-        case GS_SELECT: {
-            char buf[64];
-            const Def *sd = &roster[select_idx];
-            int unlocked = character_unlocked(select_idx);
-            int page_start = (select_idx / 24) * 24;
-            int page_count = NUM_CHARS - page_start;
-            if (page_count > 24) page_count = 24;
-            gfx_begin(RGB(8, 12, 32));
-            gfx_2d();
-            gfx_gradient(0, 0, 480, 272, RGB(8, 13, 38), RGB(36, 20, 60));
-            gfx_rect(0, 0, 480, 30, RGBA(4, 7, 20, 230));
-            gfx_rect(0, 30, 480, 2, RGB(255, 145, 35));
-            gfx_text(12, 8, 2, RGB(255, 220, 100), select_mode ? "FIGHTER DATABASE" : "SELECT YOUR FIGHTER");
-            gfx_text(392, 10, 1, RGB(185, 200, 230), "ROSTER");
-            /* Left roster panel: six columns by four rows, 24 entries per page. */
-            gfx_rect(7, 39, 196, 187, RGBA(4, 7, 22, 215));
-            for (i = 0; i < page_count; i++) {
-                int idx = page_start + i;
-                int col = i % 6, row = i / 6;
-                float x = 12.0f + col * 31.0f;
-                float y = 44.0f + row * 43.0f;
-                unsigned tile = roster[idx].body;
-                int chosen = (idx == select_idx);
-                int open = character_unlocked(idx);
-                gfx_rect(x, y, 27, 37, chosen ? RGB(255, 185, 45) : RGBA(120, 140, 190, 120));
-                gfx_rect(x + 2, y + 2, 23, 33, chosen ? RGB(42, 36, 55) : RGBA(12, 18, 40, 235));
-                /* Original colour-coded silhouette tile until real portraits are integrated. */
-                gfx_rect(x + 8, y + 7, 11, 10, open ? roster[idx].hair : RGB(85, 85, 95));
-                gfx_rect(x + 6, y + 18, 15, 10, open ? tile : RGB(65, 65, 75));
-                gfx_rect(x + 4, y + 30, 19, 3, open ? roster[idx].accent : RGB(85, 65, 70));
-                if (!open) gfx_rect(x + 2, y + 2, 23, 33, RGBA(0, 0, 0, 120));
-                sprintf(buf, "%02d", idx + 1);
-                gfx_text(x + 7, y + 29, 1, chosen ? RGB(255, 235, 145) : RGB(190, 200, 225), buf);
-                if (chosen) {
-                    gfx_rect(x - 2, y - 2, 31, 2, RGB(255, 245, 180));
-                    gfx_rect(x - 2, y + 37, 31, 2, RGB(255, 245, 180));
-                }
-            }
-            gfx_text(12, 232, 1, RGB(185, 200, 230), "D-PAD: MOVE   L/R TRIGGER: CHANGE PAGE");
-            gfx_text(12, 245, 1, RGB(255, 220, 100), "CROSS: CONFIRM   CIRCLE: BACK");
-            sprintf(buf, "PAGE %d / %d", page_start / 24 + 1, (NUM_CHARS + 23) / 24);
-            gfx_text(12, 258, 1, RGB(160, 180, 220), buf);
-            /* Right-side fighter preview and information panel. */
-            gfx_rect(211, 39, 262, 187, RGBA(4, 7, 22, 175));
-            gfx_3d();
-            gfx_camera(2.45f, 2.1f, 6.0f, 2.45f, 1.25f, 0.0f);
-            gfx_box(2.45f, -0.05f, 0, 4.5f, 0.1f, 4.5f, RGB(54, 63, 99));
-            draw_preview(select_idx, menu_angle, 2.45f);
-            gfx_2d();
-            gfx_text(220, 44, 1, RGB(175, 195, 230), "SELECTED SHINOBI");
-            gfx_text(220, 190, 2, unlocked ? RGB(255, 230, 150) : RGB(255, 100, 100), sd->name);
-            if (!unlocked) {
-                sprintf(buf, "LOCKED: %s", unlock_hint[select_idx]);
-                gfx_text(220, 211, 1, RGB(255, 125, 125), buf);
-            } else {
-                sprintf(buf, "HP %d", sd->hp);
-                gfx_text(220, 211, 1, RGB(215, 225, 245), buf);
-                sprintf(buf, "ULT: %s", sd->ult_name);
-                gfx_text(220, 224, 1, RGB(255, 205, 100), buf);
-                sprintf(buf, "AWAKEN: %s", sd->has_awk ? sd->awk_name : "NONE");
-                gfx_text(220, 237, 1, RGB(255, 165, 110), buf);
-            }
-            if (note_t > 0) gfx_text(220, 251, 1, RGB(255, 120, 120), note);
-            gfx_end();
-        } break;
-        case GS_STORY: {
-            char buf[80];
-            int mi = row_mission[story_row];
-            gfx_begin(RGB(25, 18, 30));
-            gfx_2d();
-            gfx_gradient(0, 0, 480, 272, RGB(20, 15, 40), RGB(70, 35, 60));
-            gfx_text(16, 10, 3, RGB(255, 160, 30), "STORY MODE");
-            for (i = 0; i < NUM_ROWS; i++) {
-                int m2 = row_mission[i];
-                const char *st;
-                unsigned col;
-                if (m2 < 0) { st = "SOON"; col = RGB(110, 110, 110); }
-                else if (!mission_open(m2)) { st = "LOCKED"; col = RGB(170, 100, 100); }
-                else if ((sv.completed >> m2) & 1u) { st = "CLEARED"; col = RGB(110, 220, 120); }
-                else { st = "NEW"; col = RGB(255, 220, 60); }
-                sprintf(buf, "%s%s", i == story_row ? "> " : "  ", row_title[i]);
-                gfx_text(14, 46.0f + i * 24, 2, i == story_row ? RGB(255, 255, 255) : RGB(190, 190, 190), buf);
-                gfx_text(350, 46.0f + i * 24, 2, col, st);
-            }
-            if (mi >= 0) {
-                const Mission *m = &missions[mi];
-                sprintf(buf, "%s VS %s", roster[m->pdef].name, roster[m->edef].name);
-                gfx_text(14, 200, 1, RGB(120, 200, 255), buf);
-                sprintf(buf, "OBJECTIVE: %s", m->objective);
-                gfx_text(14, 212, 1, RGB(255, 220, 60), buf);
-                if (m->psup[0] >= 0) {
-                    sprintf(buf, "SUPPORT: %s%s%s", roster[m->psup[0]].name, m->psup[1] >= 0 ? " + " : "",
-                            m->psup[1] >= 0 ? roster[m->psup[1]].name : "");
-                    gfx_text(14, 224, 1, RGB(120, 255, 150), buf);
-                }
-                if (m->unlock_char >= 0) {
-                    sprintf(buf, "REWARD: UNLOCKS %s", roster[m->unlock_char].name);
-                    gfx_text(240, 224, 1, RGB(110, 220, 120), buf);
-                }
-            }
-            if (note_t > 0) gfx_text(14, 240, 1, RGB(255, 120, 120), note);
-            gfx_text(10, 262, 1, RGB(170, 170, 170), "CROSS: PLAY   SQUARE: ERASE PROGRESS   CIRCLE: BACK");
-            gfx_end();
-        } break;
-        case GS_DIALOGUE: {
-            const Mission *m = &missions[cur_mission];
-            const Line *L = dlg_post ? m->post : m->pre;
-            const Line *cl = &L[dlg_idx];
-            char buf[160];
-            int len = (int)strlen(cl->txt), shown = dlg_chars < len ? dlg_chars : len;
-            Fighter a, b;
-            gfx_begin(sky_bot[m->arena]);
-            draw_sky(m->arena);
-            gfx_3d();
-            gfx_camera(0.0f, 1.9f, 6.5f, 0.0f, 1.5f, 0.0f);
-            draw_arena(m->arena, 999.0f, 999.0f);
-            memset(&a, 0, sizeof(a)); memset(&b, 0, sizeof(b));
-            a.def = m->pdef; a.x = -1.8f; a.fx = 1.0f; a.fz = 0.0f;
-            b.def = m->edef; b.x = 1.8f;  b.fx = -1.0f; b.fz = 0.0f;
-            draw_fighter(&a);
-            draw_fighter(&b);
-            gfx_2d();
-            sprintf(buf, "CHAPTER %d: %s", m->chapter, m->title);
-            gfx_text(10, 6, 1, RGB(255, 255, 255), buf);
-            gfx_rect(8, 150, 464, 112, RGBA(0, 0, 0, 215));
-            gfx_text(18, 156, 2, speaker_color(cl->spk), cl->spk);
-            memcpy(buf, cl->txt, (size_t)shown);
-            buf[shown] = 0;
-            gfx_text_wrap(18, 178, 2, RGB(255, 255, 255), buf, 36);
-            gfx_text(260, 250, 1, RGB(180, 180, 180), "CROSS: NEXT   START: SKIP");
-            gfx_end();
-        } break;
-        case GS_BATTLE:
-            gfx_begin(sky_bot[cur_arena]);
-            draw_battle();
-            gfx_end();
-            break;
-        case GS_RESULT:
-            gfx_begin(RGB(15, 15, 25));
-            gfx_2d();
-            gfx_gradient(0, 0, 480, 272, RGB(10, 10, 20), RGB(50, 30, 50));
-            {
-                static const char *story_opts[3] = { "RETRY", "MISSION LIST", "MAIN MENU" };
-                static const char *free_opts[2] = { "RETRY", "MAIN MENU" };
-                int cnt = story_mode ? 3 : 2;
-                const char *t = player_won ? "VICTORY" : "MISSION FAILED";
-                gfx_text(240 - gfx_text_width(t, 3) / 2, 60, 3, player_won ? RGB(255, 220, 60) : RGB(230, 70, 70), t);
-                for (i = 0; i < cnt; i++) {
-                    char buf[32];
-                    sprintf(buf, "%s%s", i == result_sel ? "> " : "  ", story_mode ? story_opts[i] : free_opts[i]);
-                    gfx_text(150, 130.0f + i * 30, 2, i == result_sel ? RGB(255, 220, 60) : RGB(200, 200, 200), buf);
-                }
-            }
-            gfx_end();
-            break;
-        case GS_COMPLETE: {
-            const Mission *m = &missions[cur_mission];
-            char buf[80];
-            int y = 120, j;
-            gfx_begin(RGB(15, 25, 20));
-            gfx_2d();
-            gfx_gradient(0, 0, 480, 272, RGB(10, 25, 20), RGB(40, 70, 50));
-            gfx_text(240 - gfx_text_width("MISSION COMPLETE", 3) / 2, 30, 3, RGB(255, 220, 60), "MISSION COMPLETE");
-            gfx_text(240 - gfx_text_width(m->title, 2) / 2, 70, 2, RGB(255, 255, 255), m->title);
-            if (m->unlock_char >= 0) {
-                sprintf(buf, "NEW CHARACTER: %s", roster[m->unlock_char].name);
-                gfx_text(40, y, 2, RGB(110, 220, 120), buf); y += 24;
-            }
-            for (j = 0; j < NUM_MISSIONS; j++)
-                if (missions[j].req == cur_mission) {
-                    sprintf(buf, "MISSION UNLOCKED: %s", missions[j].title);
-                    gfx_text(40, y, 1, RGB(255, 220, 60), buf); y += 14;
-                }
-            gfx_text(40, y + 10, 1, save_ok ? RGB(120, 220, 255) : RGB(255, 120, 120),
-                     save_ok ? "PROGRESS SAVED" : "SAVE FAILED - NO WRITABLE MEMORY STICK PATH");
-            gfx_text(150, 240, 1, RGB(180, 180, 180), "CROSS: BACK TO STORY MENU");
-            gfx_end();
-        } break;
-        }
+        battle_update(&pad, pressed);
+        gfx_begin(sky_bot[cur_arena]);
+        draw_battle();
+        gfx_end();
     }
     return 0;
 }
