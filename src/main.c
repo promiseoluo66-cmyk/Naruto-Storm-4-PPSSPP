@@ -412,7 +412,7 @@ typedef struct {
     int move, hitdone, frozen, burn, awk, dash_chase;
     int jcd[3];
     int sup[2], sup_idx, sup_t, sup_def;
-    float kbx, kbz, dashx, dashz, phase, burn_dps, mark_x, mark_z;
+    float kbx, kbz, dashx, dashz, phase, move_blend, burn_dps, mark_x, mark_z;
     int ai_cd, ai_mode, ai_mode_t, ai_guard, ai_charge;
 } Fighter;
 
@@ -785,9 +785,13 @@ static void fighter_update(Fighter *f, Fighter *o, const Input *in)
                 float ml = sqrtf(mx * mx + mz * mz);
                 float sp = d->speed * f->spd_mult * (f->awk > 0 ? 1.15f : 1.0f);
                 if (ml > 1.0f) { mx /= ml; mz /= ml; ml = 1.0f; }
+                /* Blend the walk cycle directly from the analog/D-pad magnitude.
+                   When the stick returns to center, the gait eases smoothly to idle. */
+                f->move_blend += ((in->guard ? ml * 0.45f : ml) - f->move_blend) * 0.28f;
+                if (f->move_blend < 0.005f) f->move_blend = 0.0f;
                 if (in->guard) { f->guarding = 1; sp *= 0.4f; }
                 f->x += mx * sp; f->z += mz * sp;
-                f->phase += ml * 0.35f;
+                f->phase += ml * 0.52f;
                 if (try_special(f, in)) break;
                 if (in->jump && !in->chakra_dash && f->y <= 0.001f) f->vy = 0.24f;
                 if (in->charge && !in->guard && !in->chakra_dash) { f->state = FS_CHARGE; f->timer = 0; }
@@ -1182,7 +1186,8 @@ static void battle_update(const SceCtrlData *pad, unsigned pressed)
 static void part(const Fighter *f, float rxo, float yo, float fzo, float w, float h, float dd, unsigned col)
 {
     float rx = -f->fz, rz = f->fx;
-    gfx_box_rot(f->x + rx * rxo + f->fx * fzo, f->y + yo, f->z + rz * rxo + f->fz * fzo,
+    float bob = (0.5f - 0.5f * cosf(f->phase * 2.0f)) * 0.055f * f->move_blend;
+    gfx_box_rot(f->x + rx * rxo + f->fx * fzo, f->y + yo + bob, f->z + rz * rxo + f->fz * fzo,
                 w, h, dd, atan2f(f->fx, f->fz), col);
 }
 
@@ -1324,7 +1329,12 @@ static void draw_fighter(const Fighter *f)
     const Def *d = &roster[f->def];
     unsigned body = d->body, acc = d->accent, hair = d->hair, skin = RGB(242, 205, 165);
     unsigned dark = RGB(25, 25, 35), eyec = RGB(25, 25, 35), belt = RGB(35, 30, 35);
-    float sw = sinf(f->phase) * 0.35f;
+    float walk = f->move_blend;
+    float stride = sinf(f->phase) * 0.42f * walk;
+    float bob = (0.5f - 0.5f * cosf(f->phase * 2.0f)) * 0.055f * walk;
+    float left_lift = fmaxf(0.0f, cosf(f->phase)) * 0.20f * walk;
+    float right_lift = fmaxf(0.0f, -cosf(f->phase)) * 0.20f * walk;
+    float sw = stride;
     int i, id = f->def;
     const Move *mv = (f->state == FS_JUTSU) ? &d->jut[f->move] : NULL;
 
@@ -1365,14 +1375,14 @@ static void draw_fighter(const Fighter *f)
         part(f, 0.0f, 0.65f, 0.0f, 1.0f, 1.3f, 0.7f, body);
         part(f, 0.0f, 0.2f, 0.0f, 1.1f, 0.2f, 0.8f, acc);
     } else {
-        gfx_ellipsoid(f->x - 0.20f, 0.53f, f->z + sw * 0.35f, 0.31f, 0.78f, 0.34f, acc);
-        gfx_ellipsoid(f->x + 0.20f, 0.53f, f->z - sw * 0.35f, 0.31f, 0.78f, 0.34f, acc);
-        part(f, -0.20f, 0.10f, sw + 0.06f, 0.30f, 0.18f, 0.46f, dark);
-        part(f,  0.20f, 0.10f, -sw + 0.06f, 0.30f, 0.18f, 0.46f, dark);
+        gfx_ellipsoid(f->x - 0.20f, 0.53f + left_lift + bob, f->z + stride, 0.31f, 0.78f, 0.34f, acc);
+        gfx_ellipsoid(f->x + 0.20f, 0.53f + right_lift + bob, f->z - stride, 0.31f, 0.78f, 0.34f, acc);
+        part(f, -0.20f, 0.10f + left_lift, stride + 0.06f, 0.30f, 0.18f, 0.46f, dark);
+        part(f,  0.20f, 0.10f + right_lift, -stride + 0.06f, 0.30f, 0.18f, 0.46f, dark);
     }
     /* belt, torso, collar/neck */
     part(f, 0.0f, 1.02f, 0.0f, 0.80f, 0.16f, 0.46f, belt);
-    gfx_ellipsoid(f->x, 1.43f, f->z, 0.82f, 0.78f, 0.50f, body);
+    gfx_ellipsoid(f->x, 1.43f + bob, f->z, 0.82f, 0.78f, 0.50f, body);
     part(f, 0.0f, 1.62f, 0.23f, 0.52f, 0.14f, 0.04f, acc);
     part(f, 0.0f, 1.82f, 0.0f, 0.22f, 0.14f, 0.22f, skin);
     /* costume panel, seams and waist trim break up flat colors */
@@ -1386,11 +1396,11 @@ static void draw_fighter(const Fighter *f)
     part(f, -0.20f, 0.18f, 0.27f, 0.28f, 0.055f, 0.035f, acc);
     part(f,  0.20f, 0.18f, 0.27f, 0.28f, 0.055f, 0.035f, acc);
     /* shoulders */
-    gfx_ellipsoid(f->x - 0.52f, 1.68f, f->z, 0.36f, 0.32f, 0.40f, body);
-    gfx_ellipsoid(f->x + 0.52f, 1.68f, f->z, 0.36f, 0.32f, 0.40f, body);
+    gfx_ellipsoid(f->x - 0.52f, 1.68f + bob, f->z, 0.36f, 0.32f, 0.40f, body);
+    gfx_ellipsoid(f->x + 0.52f, 1.68f + bob, f->z, 0.36f, 0.32f, 0.40f, body);
 
     /* head: face, eyes, hair cap */
-    gfx_ellipsoid(f->x, 2.12f, f->z, 0.62f, 0.66f, 0.58f, skin);
+    gfx_ellipsoid(f->x, 2.12f + bob, f->z, 0.62f, 0.66f, 0.58f, skin);
     if (id != 6) {
         /* brows, eyes and a small nose bridge make faces read better at gameplay distance */
         part(f, -0.145f, 2.205f, 0.285f, 0.15f, 0.035f, 0.035f, hair);
@@ -1399,7 +1409,7 @@ static void draw_fighter(const Fighter *f)
         part(f,  0.14f, 2.14f, 0.292f, 0.105f, 0.065f, 0.035f, eyec);
         part(f, 0.0f, 2.04f, 0.302f, 0.055f, 0.075f, 0.025f, RGB(220,165,130));
     }
-    gfx_ellipsoid(f->x, 2.43f, f->z - 0.02f, 0.70f, 0.30f, 0.64f, hair);
+    gfx_ellipsoid(f->x, 2.43f + bob, f->z - 0.02f, 0.70f, 0.30f, 0.64f, hair);
     /* layered hair locks give the base silhouette more anime-like depth */
     part(f, -0.23f, 2.58f, 0.02f, 0.17f, 0.34f, 0.18f, hair);
     part(f,  0.23f, 2.58f, 0.02f, 0.17f, 0.34f, 0.18f, hair);
@@ -1435,13 +1445,13 @@ static void draw_fighter(const Fighter *f)
         part(f, -0.50f, 1.58f, 0.45f, 0.24f, 0.24f, 0.24f, skin);
         part(f,  0.50f, 1.40f, 0.45f, 0.24f, 0.24f, 0.24f, skin);
     } else {
-        gfx_ellipsoid(f->x - 0.55f, 1.39f, f->z - sw * 0.25f, 0.27f, 0.58f, 0.30f, body);
-        gfx_ellipsoid(f->x + 0.55f, 1.39f, f->z + sw * 0.25f, 0.27f, 0.58f, 0.30f, body);
+        gfx_ellipsoid(f->x - 0.55f, 1.39f + bob, f->z - stride * 0.70f, 0.27f, 0.58f, 0.30f, body);
+        gfx_ellipsoid(f->x + 0.55f, 1.39f + bob, f->z + stride * 0.70f, 0.27f, 0.58f, 0.30f, body);
         /* forearm guards and glove cuffs, with low polygon cost */
-        part(f, -0.56f, 1.14f, 0.08f, 0.25f, 0.12f, 0.28f, acc);
-        part(f,  0.56f, 1.14f, 0.08f, 0.25f, 0.12f, 0.28f, acc);
-        gfx_ellipsoid(f->x - 0.56f, 1.02f, f->z - sw * 0.25f, 0.22f, 0.22f, 0.22f, skin);
-        gfx_ellipsoid(f->x + 0.56f, 1.02f, f->z + sw * 0.25f, 0.22f, 0.22f, 0.22f, skin);
+        part(f, -0.56f, 1.14f, stride * 0.70f + 0.08f, 0.25f, 0.12f, 0.28f, acc);
+        part(f,  0.56f, 1.14f, -stride * 0.70f + 0.08f, 0.25f, 0.12f, 0.28f, acc);
+        gfx_ellipsoid(f->x - 0.56f, 1.02f + bob, f->z + stride * 0.70f, 0.22f, 0.22f, 0.22f, skin);
+        gfx_ellipsoid(f->x + 0.56f, 1.02f + bob, f->z - stride * 0.70f, 0.22f, 0.22f, 0.22f, skin);
     }
 
     if (f->state == FS_ATTACK) {
