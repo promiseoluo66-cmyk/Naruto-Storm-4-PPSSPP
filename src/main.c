@@ -553,7 +553,13 @@ static void melee_hit(Fighter *f, Fighter *o)
     static const float kb[5] = { 0, 0.06f, 0.06f, 0.12f, 0.48f };
     int c = f->combo, hit;
     if (c < 1 || c > 4) return;
-    if (dist_xz(f->x, f->z, o->x, o->z) <= 2.4f && fabsf(f->y - o->y) < 1.6f) {
+    {
+        float dx = o->x - f->x, dz = o->z - f->z;
+        float forward = dx * f->fx + dz * f->fz;
+        float side = fabsf(dx * -f->fz + dz * f->fx);
+        /* Contact is a short forward-facing lane, not a 360-degree distance bubble. */
+        if (forward > 0.15f && forward <= 2.25f && side <= 0.95f &&
+            fabsf(f->y - o->y) < 1.6f) {
         hit = deal_damage(o, f, dmg[c], stn[c], kb[c]);
         if (hit == 1) f->chakra = fminf(100.0f, f->chakra + (c == 4 ? 8.0f : 4.0f));
         if (hit == 1 && c == 3) {
@@ -563,6 +569,7 @@ static void melee_hit(Fighter *f, Fighter *o)
         if (hit == 1 && c == 4) {
             spawn_fx(o->x, o->y + 1.3f, o->z, roster[f->def].orb, 18);
             if (shake < 0.22f) shake = 0.22f;
+        }
         }
     }
 }
@@ -790,7 +797,7 @@ static void fighter_update(Fighter *f, Fighter *o, const Input *in)
                 if (f->move_blend < 0.005f) f->move_blend = 0.0f;
                 if (in->guard) { f->guarding = 1; sp *= 0.4f; }
                 f->x += mx * sp; f->z += mz * sp;
-                f->phase += ml * 0.52f;
+                f->phase += (ml > 0.05f) ? ml * 0.52f : 0.025f;
                 if (try_special(f, in)) break;
                 if (in->jump && !in->chakra_dash && f->y <= 0.001f) f->vy = 0.24f;
                 if (in->charge && !in->guard && !in->chakra_dash) { f->state = FS_CHARGE; f->timer = 0; }
