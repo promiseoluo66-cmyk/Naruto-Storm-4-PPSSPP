@@ -1471,7 +1471,10 @@ static void draw_fighter(const Fighter *f)
         part(f,  0.14f, 2.14f, 0.292f, 0.105f, 0.065f, 0.035f, eyec);
         part(f, 0.0f, 2.04f, 0.302f, 0.055f, 0.075f, 0.025f, RGB(220,165,130));
     }
-    gfx_ellipsoid(f->x, 2.43f, f->z - 0.02f, 0.70f, 0.30f, 0.64f, hair);
+    gfx_ellipsoid(f->x + f->fx * (f->moving ? 0.40f : 0.0f),
+                  f->moving ? 2.31f : 2.43f,
+                  f->z - 0.02f + f->fz * (f->moving ? 0.40f : 0.0f),
+                  0.70f, 0.30f, 0.64f, hair);
     /* layered hair locks give the base silhouette more anime-like depth */
     part(f, -0.23f, 2.58f, 0.02f, 0.17f, 0.34f, 0.18f, hair);
     part(f,  0.23f, 2.58f, 0.02f, 0.17f, 0.34f, 0.18f, hair);
