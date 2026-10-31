@@ -75,6 +75,38 @@ static void mat_rotate_local_y(float m[12], float angle)
     }
 }
 
+/* Rotate a joint around an axis expressed in character space. parent_bind is
+   the parent's bind-global matrix; the joint translation (pivot) is preserved. */
+static void mat_rotate_parent_axis(float m[12], const float parent_bind[12],
+                                   float ax, float ay, float az, float angle)
+{
+    float x = parent_bind[0] * ax + parent_bind[4] * ay + parent_bind[8] * az;
+    float y = parent_bind[1] * ax + parent_bind[5] * ay + parent_bind[9] * az;
+    float z = parent_bind[2] * ax + parent_bind[6] * ay + parent_bind[10] * az;
+    float len = sqrtf(x*x + y*y + z*z);
+    float c, sn, q, a[9], old[9], next[9];
+    int r, col, k;
+    if (len < 0.00001f || fabsf(angle) < 0.00001f) return;
+    x /= len; y /= len; z /= len;
+    c = cosf(angle); sn = sinf(angle); q = 1.0f - c;
+    a[0] = c + x*x*q;     a[1] = x*y*q - z*sn; a[2] = x*z*q + y*sn;
+    a[3] = y*x*q + z*sn;  a[4] = c + y*y*q;    a[5] = y*z*q - x*sn;
+    a[6] = z*x*q - y*sn;  a[7] = z*y*q + x*sn; a[8] = c + z*z*q;
+    for (r = 0; r < 3; r++)
+        for (col = 0; col < 3; col++)
+            old[r*3 + col] = m[r*4 + col];
+    for (r = 0; r < 3; r++) {
+        for (col = 0; col < 3; col++) {
+            float v = 0.0f;
+            for (k = 0; k < 3; k++) v += a[r*3 + k] * old[k*3 + col];
+            next[r*3 + col] = v;
+        }
+    }
+    for (r = 0; r < 3; r++)
+        for (col = 0; col < 3; col++)
+            m[r*4 + col] = next[r*3 + col];
+}
+
 static void setup_walk_pose(RiggedModel *model, float phase, float blend,
                             int attack_combo, int attack_timer)
 {
@@ -95,36 +127,55 @@ static void setup_walk_pose(RiggedModel *model, float phase, float blend,
     for (i = 0; i < model->bone_count; i++)
         mat_copy(model->bones[i].current_local, model->bones[i].bind_local);
 
-    /* Naruto SMD hierarchy: hip 9; legs 10-12 and 18-20; arms 44-46/65-67. */
-    if (model->bone_count > 66) {
+    /* Naruto SMD hierarchy: hip 9; legs 10-12 and 18-20; arms 44-46/65-67.
+       The source is a T-pose, so first lower both arms into a relaxed guard.
+       All arm rotations below are around character-space axes, not arbitrary
+       bone-local axes; this keeps the hands from twisting away from the body. */
+    if (model->bone_count > 67) {
         mat_rotate_local_y(model->bones[10].current_local, swing);
         mat_rotate_local_y(model->bones[18].current_local, -swing);
         mat_rotate_local_y(model->bones[11].current_local, left_knee);
         mat_rotate_local_y(model->bones[19].current_local, right_knee);
         mat_rotate_local_y(model->bones[12].current_local, -left_knee * 0.22f);
         mat_rotate_local_y(model->bones[20].current_local, -right_knee * 0.22f);
+
+        /* T-pose -> relaxed arms hanging beside the torso. */
+        mat_rotate_parent_axis(model->bones[44].current_local,
+                               model->bones[43].bind_global, 0.0f, 0.0f, 1.0f, -1.10f);
+        mat_rotate_parent_axis(model->bones[65].current_local,
+                               model->bones[64].bind_global, 0.0f, 0.0f, 1.0f, 1.10f);
+
         if (attack_combo > 0 && punch != 0.0f) {
-            /* A basic strike alternates hands. The punch reaches full extension
-               on frame 5, exactly when melee_hit() checks the hit box. */
+            /* The active shoulder swings forward; frame 5 is the contact pose. */
             if ((attack_combo & 1) != 0) {
-                mat_rotate_local_y(model->bones[65].current_local, punch);
-                mat_rotate_local_y(model->bones[66].current_local, -punch * 0.12f);
-                mat_rotate_local_y(model->bones[67].current_local, punch * 0.08f);
-                mat_rotate_local_y(model->bones[44].current_local, -punch * 0.12f);
+                mat_rotate_parent_axis(model->bones[65].current_local,
+                                       model->bones[64].bind_global, 1.0f, 0.0f, 0.0f, -punch);
+                mat_rotate_parent_axis(model->bones[66].current_local,
+                                       model->bones[65].bind_global, 1.0f, 0.0f, 0.0f, -punch * 0.10f);
+                mat_rotate_parent_axis(model->bones[67].current_local,
+                                       model->bones[66].bind_global, 1.0f, 0.0f, 0.0f, -punch * 0.05f);
+                mat_rotate_parent_axis(model->bones[44].current_local,
+                                       model->bones[43].bind_global, 1.0f, 0.0f, 0.0f, punch * 0.12f);
             } else {
-                mat_rotate_local_y(model->bones[44].current_local, -punch);
-                mat_rotate_local_y(model->bones[45].current_local, punch * 0.12f);
-                mat_rotate_local_y(model->bones[46].current_local, -punch * 0.08f);
-                mat_rotate_local_y(model->bones[65].current_local, punch * 0.12f);
+                mat_rotate_parent_axis(model->bones[44].current_local,
+                                       model->bones[43].bind_global, 1.0f, 0.0f, 0.0f, -punch);
+                mat_rotate_parent_axis(model->bones[45].current_local,
+                                       model->bones[44].bind_global, 1.0f, 0.0f, 0.0f, -punch * 0.10f);
+                mat_rotate_parent_axis(model->bones[46].current_local,
+                                       model->bones[45].bind_global, 1.0f, 0.0f, 0.0f, -punch * 0.05f);
+                mat_rotate_parent_axis(model->bones[65].current_local,
+                                       model->bones[64].bind_global, 1.0f, 0.0f, 0.0f, punch * 0.12f);
             }
-            mat_rotate_local_y(model->bones[41].current_local,
-                               ((attack_combo & 1) ? 1.0f : -1.0f) * punch * 0.08f);
         } else {
-            mat_rotate_local_y(model->bones[44].current_local, -swing * 0.48f);
-            mat_rotate_local_y(model->bones[65].current_local, swing * 0.48f);
-            mat_rotate_local_y(model->bones[45].current_local, fmaxf(0.0f, swing) * 0.16f);
-            mat_rotate_local_y(model->bones[66].current_local, fmaxf(0.0f, -swing) * 0.16f);
-            mat_rotate_local_y(model->bones[41].current_local, swing * 0.035f);
+            /* Opposite arm swing while walking/running. */
+            mat_rotate_parent_axis(model->bones[44].current_local,
+                                   model->bones[43].bind_global, 1.0f, 0.0f, 0.0f, swing * 0.42f);
+            mat_rotate_parent_axis(model->bones[65].current_local,
+                                   model->bones[64].bind_global, 1.0f, 0.0f, 0.0f, -swing * 0.42f);
+            mat_rotate_parent_axis(model->bones[45].current_local,
+                                   model->bones[44].bind_global, 1.0f, 0.0f, 0.0f, swing * 0.10f);
+            mat_rotate_parent_axis(model->bones[66].current_local,
+                                   model->bones[65].bind_global, 1.0f, 0.0f, 0.0f, -swing * 0.10f);
         }
     }
 
