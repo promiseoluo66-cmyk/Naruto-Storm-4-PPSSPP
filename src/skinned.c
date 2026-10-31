@@ -655,8 +655,30 @@ void skinned_draw(const SkinnedMesh *mesh, SkinnedInstance *instance,
     for (i = 0; i < mesh->vertex_count; i++) {
         const SkinVertex *src = &mesh->vertices[i];
         float px = 0.0f, py = 0.0f, pz = 0.0f;
-        int k;
-        for (k = 0; k < 4; k++) {
+        int k, hide_triangle = 1, corner;
+        /*
+         * The imported rig exposes separate left/right kunai attachment bones.
+         * Collapse only triangles whose three corners are strongly weighted to
+         * a left-side attachment. The corresponding right-side attachment stays.
+         */
+        for (corner = 0; corner < 3; corner++) {
+            const SkinVertex *cv = &mesh->vertices[(i / 3u) * 3u + (unsigned int)corner];
+            int attached = 0, j;
+            for (j = 0; j < 4; j++) {
+                unsigned int cb = cv->bone[j];
+                if (cv->weight[j] > 0.55f &&
+                    (name_is(mesh->bones[cb].name, "j_103kunaiL") ||
+                     name_is(mesh->bones[cb].name, "j_104WkunaiL"))) {
+                    attached = 1;
+                    break;
+                }
+            }
+            if (!attached) {
+                hide_triangle = 0;
+                break;
+            }
+        }
+        if (!hide_triangle) for (k = 0; k < 4; k++) {
             float w = src->weight[k];
             const float *m;
             float tx, ty, tz;
@@ -669,6 +691,7 @@ void skinned_draw(const SkinnedMesh *mesh, SkinnedInstance *instance,
             tz = m[8] * src->x + m[9] * src->y + m[10] * src->z + m[11];
             px += tx * w; py += ty * w; pz += tz * w;
         }
+        if (hide_triangle) px = py = pz = 0.0f;
         /* The source SMD uses Z-up; the PSP game renderer uses Y-up. */
         instance->vertices[i].x = px * scale;
         instance->vertices[i].y = pz * scale;
