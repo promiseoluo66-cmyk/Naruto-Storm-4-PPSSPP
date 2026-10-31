@@ -1334,7 +1334,6 @@ static void draw_fighter(const Fighter *f)
     float bob = (0.5f - 0.5f * cosf(f->phase * 2.0f)) * 0.055f * walk;
     float left_lift = fmaxf(0.0f, cosf(f->phase)) * 0.20f * walk;
     float right_lift = fmaxf(0.0f, -cosf(f->phase)) * 0.20f * walk;
-    float sw = stride;
     int i, id = f->def;
     const Move *mv = (f->state == FS_JUTSU) ? &d->jut[f->move] : NULL;
 
@@ -1427,9 +1426,9 @@ static void draw_fighter(const Fighter *f)
     part(f,  0.55f, 1.10f, 0.08f, 0.29f, 0.18f, 0.31f, dark);
     part(f, -0.55f, 1.04f, 0.13f, 0.25f, 0.10f, 0.27f, acc);
     part(f,  0.55f, 1.04f, 0.13f, 0.25f, 0.10f, 0.27f, acc);
-    gfx_ellipsoid(f->x - 0.20f, 0.16f, f->z + sw * 0.35f + 0.06f,
+    gfx_ellipsoid(f->x - 0.20f, 0.16f + left_lift + bob, f->z + stride + 0.06f,
                   0.20f, 0.13f, 0.28f, dark);
-    gfx_ellipsoid(f->x + 0.20f, 0.16f, f->z - sw * 0.35f + 0.06f,
+    gfx_ellipsoid(f->x + 0.20f, 0.16f + right_lift + bob, f->z - stride + 0.06f,
                   0.20f, 0.13f, 0.28f, dark);
 
     /* Arms */
