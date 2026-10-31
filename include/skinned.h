@@ -9,6 +9,7 @@ typedef struct {
     int parent;
     char name[32];
     float local_bind[12];
+    float bind_global[12];
     float inverse_bind[12];
 } SkinBone;
 
@@ -41,7 +42,8 @@ typedef enum {
     SKIN_ACTION_JUTSU,
     SKIN_ACTION_JUMP,
     SKIN_ACTION_GUARD,
-    SKIN_ACTION_DASH
+    SKIN_ACTION_DASH,
+    SKIN_ACTION_HIT
 } SkinAction;
 
 typedef struct {
@@ -50,6 +52,8 @@ typedef struct {
     int timer;
     int combo_dir;
     float phase;
+    float height;
+    float vertical_velocity;
 } SkinPose;
 
 int skinned_mesh_load(SkinnedMesh *mesh, const char *mesh_path,
