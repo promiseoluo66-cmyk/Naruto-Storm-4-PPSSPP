@@ -27,7 +27,7 @@ b=a+'''
     }
 '''
 rep(a,b)
-init = "\\n".join([
+init = "\n".join([
     "    gfx_init();",
     '    if (skinned_mesh_load(&naruto_skin,"assets/chr/test/naruto_skin.nskl","assets/chr/test/naruto_skin.nmtx")==0) {',
     "        if (skinned_instance_init(&naruto_skin_player,&naruto_skin)==0 &&",
@@ -36,6 +36,6 @@ init = "\\n".join([
     "    }",
     "    sceCtrlSetSamplingCycle(0);"
 ])
-rep('    gfx_init();\\n    sceCtrlSetSamplingCycle(0);', init)
+rep('    gfx_init();\n    sceCtrlSetSamplingCycle(0);', init)
 p.write_text(s)
 print("SKELETAL MAIN INTEGRATION APPLIED")
