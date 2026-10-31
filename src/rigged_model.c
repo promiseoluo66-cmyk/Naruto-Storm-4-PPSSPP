@@ -25,11 +25,6 @@ static int read_exact(SceUID fd, void *dst, unsigned int bytes)
 }
 
 /* Row-major affine 3x4 matrices. The importer has already converted axes. */
-static void mat_identity(float m[12])
-{
-    memset(m, 0, sizeof(float) * 12);
-    m[0] = m[5] = m[10] = 1.0f;
-}
 
 static void mat_copy(float dst[12], const float src[12])
 {
