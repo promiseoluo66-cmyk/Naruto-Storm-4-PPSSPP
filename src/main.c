@@ -1341,7 +1341,14 @@ static void draw_fighter(const Fighter *f)
     if (id == 5) eyec = RGB(60, 170, 90);
     if (id == 7) eyec = RGB(170, 150, 220);
 
-    gfx_box(f->x, 0.03f, f->z, 1.3f, 0.02f, 1.3f, RGB(20, 20, 20));
+    /* Soft low-poly ground shadow stays locked to the fighter's world root. */
+    {
+        float shadow_scale = 1.0f - fminf(0.45f, f->y * 0.12f);
+        if (shadow_scale < 0.55f) shadow_scale = 0.55f;
+        gfx_ellipsoid(f->x, 0.026f, f->z,
+                      1.25f * shadow_scale, 0.035f,
+                      0.78f * shadow_scale, RGB(23, 20, 28));
+    }
 
     if (f->dead) {
         gfx_box_rot(f->x, 0.28f, f->z, 0.9f, 0.55f, 1.9f, atan2f(f->fx, f->fz), body);
@@ -1372,9 +1379,11 @@ static void draw_fighter(const Fighter *f)
        pose driven by the same analog magnitude that moves the fighter. */
     if (id == 0 && naruto_rigged_ready) {
         float gait = (f->state == FS_IDLE) ? f->move_blend : 0.0f;
+        int attack_combo = (f->state == FS_ATTACK) ? f->combo : 0;
+        int attack_timer = (f->state == FS_ATTACK) ? f->timer : 0;
         rigged_model_draw(&naruto_rigged, &naruto_rigged_texture,
                           f->x, f->y, f->z, atan2f(f->fx, f->fz),
-                          f->phase, gait, 1.55f);
+                          f->phase, gait, attack_combo, attack_timer, 1.55f);
         return;
     }
 
