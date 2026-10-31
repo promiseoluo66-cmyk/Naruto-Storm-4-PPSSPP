@@ -145,6 +145,29 @@ jobs:
                           print("SMD VERTEX INFLUENCE HISTOGRAM:", dict(weight_hist), "MAX=", max_weights)
                           print("SMD MULTI-WEIGHT EXAMPLES:", multi_examples)
                       print("SMD ALL FILES:", [(n, inner.getinfo(n).file_size) for n in names if n.lower().endswith(".smd")])
+                      for smd_path in [n for n in names if n.lower().endswith(".smd")]:
+                          other = inner.read(smd_path).decode("utf-8", "replace").splitlines()
+                          markers = [(i + 1, x.strip()) for i, x in enumerate(other) if x.strip() in ("nodes", "skeleton", "triangles", "end")]
+                          st = next((i for i,x in enumerate(other) if x.strip() == "skeleton"), None)
+                          frame_ids = []
+                          if st is not None:
+                              i = st + 1
+                              while i < len(other) and other[i].strip() != "end":
+                                  if other[i].strip().startswith("time "): frame_ids.append(i)
+                                  i += 1
+                          nd = next((i for i,x in enumerate(other) if x.strip() == "nodes"), None)
+                          bone_count = 0
+                          if nd is not None:
+                              i = nd + 1
+                              while i < len(other) and other[i].strip() != "end":
+                                  if other[i].strip(): bone_count += 1
+                                  i += 1
+                          print("SMD FILE SUMMARY:", smd_path, "lines=", len(other),
+                                "bones=", bone_count, "frames=", len(frame_ids),
+                                "markers=", markers[:12])
+                          if frame_ids:
+                              print("SMD LAST FRAME SAMPLE:", [x.strip() for x in other[frame_ids[-1]:frame_ids[-1]+8]])
+
 
                       print("SMD SECTION MARKERS:", [(i + 1, x.strip()) for i, x in enumerate(smd) if x.strip() in ("nodes", "skeleton", "triangles", "end")][:16])
                       print("SMD HEADER SAMPLE:", smd[:12])
