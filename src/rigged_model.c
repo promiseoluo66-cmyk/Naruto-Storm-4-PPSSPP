@@ -120,7 +120,7 @@ static void setup_walk_pose(RiggedModel *model, float phase, float blend,
                             int attack_combo, int attack_timer)
 {
     float swing, left_knee, right_knee;
-    float attack = 0.0f, windup = 0.0f, follow = 0.0f, recovery = 0.0f;
+    float windup = 0.0f, follow = 0.0f, recovery = 0.0f;
     float drive = 0.0f, counter = 0.0f, torso_twist = 0.0f;
     int active_right = 1;
     unsigned int i;
@@ -144,7 +144,6 @@ static void setup_walk_pose(RiggedModel *model, float phase, float blend,
         follow = pose_smooth(hit_end, hit_end + 0.18f, t) *
                  (1.0f - pose_smooth(hit_end + 0.18f, 0.82f, t));
         recovery = pose_smooth(0.58f, 1.0f, t);
-        attack = (1.0f - recovery) * (windup * 0.45f + drive + follow * 0.32f);
         counter = windup * 0.55f + follow * 0.35f;
         /* Twist into the strike, then let the shoulders and hips unwind. */
         torso_twist = (active_right ? -1.0f : 1.0f) *
