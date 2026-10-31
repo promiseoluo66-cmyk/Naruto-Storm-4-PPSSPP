@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "gfx.h"
+#include "storm_anim.h"
 
 PSP_MODULE_INFO("NarutoStorm4", 0, 1, 0);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
@@ -408,7 +409,7 @@ typedef struct {
     float x, y, z, vy, fx, fz;
     float hp, maxhp, chakra, dmg_mult, spd_mult, awm, supm;
     FState state;
-    int timer, combo, combo_win, queued, stun, inv, guarding, dead, hit_flash, phase_lvl;
+    int timer, combo, combo_win, queued, stun, inv, guarding, dead, hit_flash, phase_lvl, combo_dir;
     int move, hitdone, frozen, burn, awk, dash_chase;
     int jcd[3];
     int sup[2], sup_idx, sup_t, sup_def;
@@ -793,6 +794,7 @@ static void fighter_update(Fighter *f, Fighter *o, const Input *in)
                 if (in->charge && !in->guard && !in->chakra_dash) { f->state = FS_CHARGE; f->timer = 0; }
                 else if (in->atk) {
                     f->combo = (f->combo_win > 0 && f->combo < 4) ? f->combo + 1 : 1;
+                    if (f->combo == 1) f->combo_dir = (in->ay > 0.35f) ? 1 : ((in->ay < -0.35f) ? -1 : 0);
                     f->combo_win = 0; f->queued = 0; f->state = FS_ATTACK; f->timer = 0;
                 } else if (in->jutsu > 0) {
                     start_jutsu(f, in->jutsu - 1);
@@ -1319,13 +1321,64 @@ static void draw_details(const Fighter *f, unsigned hair, unsigned dark)
     }
 }
 
+/* Convert a character-local offset (right, up, forward) into world coordinates. */
+static void fighter_local_point(const Fighter *f, float side, float y, float forward,
+                                float *x, float *wy, float *z)
+{
+    float rx = -f->fz, rz = f->fx;
+    *x = f->x + rx * side + f->fx * forward;
+    *wy = f->y + y;
+    *z = f->z + rz * side + f->fz * forward;
+}
+
+static void draw_pose_arm(const Fighter *f, float side, float reach, float lift,
+                          unsigned body, unsigned skin, unsigned accent)
+{
+    float sx, sy, sz, ex, ey, ez, hx, hy, hz;
+    float elbowSide = side * (0.62f - reach * 0.10f);
+    float handSide = side * (0.66f - reach * 0.18f);
+    fighter_local_point(f, side * 0.52f, 1.68f, 0.00f, &sx, &sy, &sz);
+    fighter_local_point(f, elbowSide, 1.38f + lift * 0.25f, 0.16f + reach * 0.40f, &ex, &ey, &ez);
+    fighter_local_point(f, handSide, 1.13f + lift * 0.60f, 0.12f + reach * 0.92f, &hx, &hy, &hz);
+    gfx_segment(sx, sy, sz, ex, ey, ez, 0.22f, body);
+    gfx_segment(ex, ey, ez, hx, hy, hz, 0.17f, body);
+    gfx_ellipsoid(hx, hy, hz, 0.22f, 0.22f, 0.22f, skin);
+    if (reach > 0.35f) {
+        float gx, gy, gz;
+        fighter_local_point(f, handSide, 1.12f + lift * 0.60f, 0.02f + reach * 0.92f,
+                            &gx, &gy, &gz);
+        gfx_ellipsoid(gx, gy, gz, 0.24f, 0.12f, 0.24f, accent);
+    } else {
+        float gx, gy, gz;
+        fighter_local_point(f, side * 0.61f, 1.15f, 0.08f, &gx, &gy, &gz);
+        gfx_ellipsoid(gx, gy, gz, 0.25f, 0.12f, 0.25f, accent);
+    }
+}
+
+static void draw_pose_leg(const Fighter *f, float side, float forward, float lift,
+                          unsigned cloth, unsigned dark)
+{
+    float hx, hy, hz, kx, ky, kz, ax, ay, az;
+    fighter_local_point(f, side * 0.20f, 1.02f, 0.00f, &hx, &hy, &hz);
+    fighter_local_point(f, side * 0.22f, 0.55f + lift * 0.25f, forward * 0.38f,
+                        &kx, &ky, &kz);
+    fighter_local_point(f, side * 0.23f, 0.13f + lift, 0.06f + forward,
+                        &ax, &ay, &az);
+    gfx_segment(hx, hy, hz, kx, ky, kz, 0.27f, cloth);
+    gfx_segment(kx, ky, kz, ax, ay, az, 0.21f, cloth);
+    gfx_ellipsoid(ax, ay, az + f->fz * 0.07f, 0.27f, 0.14f, 0.38f, dark);
+}
+
 static void draw_fighter(const Fighter *f)
 {
     const Def *d = &roster[f->def];
     unsigned body = d->body, acc = d->accent, hair = d->hair, skin = RGB(242, 205, 165);
     unsigned dark = RGB(25, 25, 35), eyec = RGB(25, 25, 35), belt = RGB(35, 30, 35);
     float sw = sinf(f->phase) * 0.35f;
+    StormPose pose;
     int i, id = f->def;
+    storm_anim_evaluate(&pose, f->state == FS_ATTACK, f->combo, f->timer,
+                        f->combo_dir, f->phase);
     const Move *mv = (f->state == FS_JUTSU) ? &d->jut[f->move] : NULL;
 
     if (f->hit_flash > 0) { body = RGB(255, 255, 255); acc = body; }
@@ -1360,15 +1413,13 @@ static void draw_fighter(const Fighter *f)
                     f->z + cosf(frame * 0.5f + i * 2.0f) * 0.35f, 0.3f, 0.3f, 0.3f, RGB(45, 0, 70));
     }
 
-    /* legs, feet (Kaguya wears a long robe instead) */
+    /* Animated legs: procedural two-segment limbs, driven by eased pose curves. */
     if (id == 7) {
         part(f, 0.0f, 0.65f, 0.0f, 1.0f, 1.3f, 0.7f, body);
         part(f, 0.0f, 0.2f, 0.0f, 1.1f, 0.2f, 0.8f, acc);
     } else {
-        gfx_ellipsoid(f->x - 0.20f, 0.53f, f->z + sw * 0.35f, 0.31f, 0.78f, 0.34f, acc);
-        gfx_ellipsoid(f->x + 0.20f, 0.53f, f->z - sw * 0.35f, 0.31f, 0.78f, 0.34f, acc);
-        part(f, -0.20f, 0.10f, sw + 0.06f, 0.30f, 0.18f, 0.46f, dark);
-        part(f,  0.20f, 0.10f, -sw + 0.06f, 0.30f, 0.18f, 0.46f, dark);
+        draw_pose_leg(f, -1.0f, pose.l_leg_forward, pose.l_leg_lift, acc, dark);
+        draw_pose_leg(f,  1.0f, pose.r_leg_forward, pose.r_leg_lift, acc, dark);
     }
     /* belt, torso, collar/neck */
     part(f, 0.0f, 1.02f, 0.0f, 0.80f, 0.16f, 0.46f, belt);
@@ -1422,42 +1473,15 @@ static void draw_fighter(const Fighter *f)
     gfx_ellipsoid(f->x + 0.20f, 0.16f, f->z - sw * 0.35f + 0.06f,
                   0.20f, 0.13f, 0.28f, dark);
 
-    /* Arms */
-    if ((f->state == FS_ATTACK && f->timer >= 3 && f->timer <= 9) ||
-        (mv && (mv->type == MV_DASH || mv->type == MV_SLASH) && f->timer >= 4 && f->timer <= 16)) {
-        part(f, -0.50f, 1.50f, 0.70f, 0.22f, 0.22f, 1.10f, body);
-        part(f, -0.50f, 1.50f, 1.32f, 0.28f, 0.28f, 0.28f, skin);
-        part(f,  0.52f, 1.30f, 0.10f, 0.22f, 0.60f, 0.24f, body);
-        part(f,  0.52f, 0.95f, 0.10f, 0.20f, 0.20f, 0.20f, skin);
-    } else if (f->guarding) {
-        part(f, -0.15f, 1.58f, 0.45f, 0.58f, 0.22f, 0.22f, body);
-        part(f,  0.15f, 1.40f, 0.45f, 0.58f, 0.22f, 0.22f, body);
-        part(f, -0.50f, 1.58f, 0.45f, 0.24f, 0.24f, 0.24f, skin);
-        part(f,  0.50f, 1.40f, 0.45f, 0.24f, 0.24f, 0.24f, skin);
+    /* Arms: smooth, articulated shoulder-elbow-wrist chains. */
+    if (f->guarding) {
+        draw_pose_arm(f, -1.0f, 0.25f, 0.20f, body, skin, acc);
+        draw_pose_arm(f,  1.0f, 0.25f, 0.20f, body, skin, acc);
     } else {
-        gfx_ellipsoid(f->x - 0.55f, 1.39f, f->z - sw * 0.25f, 0.27f, 0.58f, 0.30f, body);
-        gfx_ellipsoid(f->x + 0.55f, 1.39f, f->z + sw * 0.25f, 0.27f, 0.58f, 0.30f, body);
-        /* forearm guards and glove cuffs, with low polygon cost */
-        part(f, -0.56f, 1.14f, 0.08f, 0.25f, 0.12f, 0.28f, acc);
-        part(f,  0.56f, 1.14f, 0.08f, 0.25f, 0.12f, 0.28f, acc);
-        gfx_ellipsoid(f->x - 0.56f, 1.02f, f->z - sw * 0.25f, 0.22f, 0.22f, 0.22f, skin);
-        gfx_ellipsoid(f->x + 0.56f, 1.02f, f->z + sw * 0.25f, 0.22f, 0.22f, 0.22f, skin);
+        draw_pose_arm(f, -1.0f, pose.l_arm_forward, pose.l_arm_lift, body, skin, acc);
+        draw_pose_arm(f,  1.0f, pose.r_arm_forward, pose.r_arm_lift, body, skin, acc);
     }
 
-    if (f->state == FS_ATTACK) {
-        int t = f->timer;
-        /* Give combo hits different silhouettes: cross-kick, spinning sweep, then heavy finisher. */
-        if (f->combo == 2 && t >= 3 && t <= 9) {
-            part(f, 0.22f, 0.62f, 0.64f, 0.25f, 0.24f, 0.92f, acc);
-            part(f, 0.22f, 0.62f, 1.10f, 0.30f, 0.26f, 0.30f, dark);
-        } else if (f->combo == 3 && t >= 3 && t <= 9) {
-            gfx_box_rot(f->x + f->fx * 1.1f, 1.45f, f->z + f->fz * 1.1f,
-                        2.3f, 0.12f, 1.4f, atan2f(f->fx, f->fz) + frame * 0.08f, d->orb);
-        } else if (f->combo == 4 && t >= 2 && t <= 10) {
-            part(f, 0.0f, 1.45f, 1.05f, 0.72f, 0.72f, 0.85f, d->orb);
-            if ((t & 1) == 0) part(f, 0.0f, 1.45f, 1.45f, 0.44f, 0.44f, 0.50f, RGB(255,255,235));
-        }
-    }
 
     if (mv) {
         int t = f->timer;
