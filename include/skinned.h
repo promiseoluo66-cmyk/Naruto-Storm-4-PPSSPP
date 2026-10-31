@@ -29,12 +29,6 @@ typedef struct {
     ModelTexture texture;
 } SkinnedMesh;
 
-typedef struct {
-    ModelVertex *vertices;
-    float global[SKIN_MAX_BONES][12];
-    float skin[SKIN_MAX_BONES][12];
-} SkinnedInstance;
-
 typedef enum {
     SKIN_ACTION_IDLE = 0,
     SKIN_ACTION_RUN,
@@ -55,6 +49,16 @@ typedef struct {
     float height;
     float vertical_velocity;
 } SkinPose;
+
+typedef struct {
+    ModelVertex *vertices;
+    float global[SKIN_MAX_BONES][12];
+    float skin[SKIN_MAX_BONES][12];
+    SkinPose last_pose;
+    SkinPose transition_pose;
+    int pose_valid;
+    int blend_frames_left;
+} SkinnedInstance;
 
 int skinned_mesh_load(SkinnedMesh *mesh, const char *mesh_path,
                       const char *texture_path);
