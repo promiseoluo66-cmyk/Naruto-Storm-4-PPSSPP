@@ -34,10 +34,9 @@ if "skinned_draw(&naruto_skin" not in s:
         else if (f->state == FS_JUTSU || f->state == FS_ULT || f->state == FS_TEAM)
             pose.action = SKIN_ACTION_JUTSU;
         else if (f->y > 0.05f) pose.action = SKIN_ACTION_JUMP;
-        else if (f->guarding) pose.action = SKIN_ACTION_GUARD;
         else if (f->state == FS_DASH) pose.action = SKIN_ACTION_DASH;
-        else if (f->moving) pose.action = SKIN_ACTION_RUN;
-        else pose.action = SKIN_ACTION_IDLE;
+        else if (f->guarding || !f->moving) pose.action = SKIN_ACTION_GUARD;
+        else pose.action = SKIN_ACTION_RUN;
         gfx_box(f->x, 0.025f, f->z, 1.25f, 0.02f, 1.25f, RGB(20, 20, 20));
         skinned_draw(&naruto_skin, instance, f->x, f->y, f->z,
                      atan2f(f->fx, f->fz), 1.45f, &pose);
