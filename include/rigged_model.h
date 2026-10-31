@@ -32,7 +32,8 @@ typedef struct {
 int rigged_model_load(RiggedModel *model, const char *path);
 void rigged_model_draw(RiggedModel *model, const ModelTexture *texture,
                        float x, float y, float z, float yaw,
-                       float walk_phase, float move_blend, float scale);
+                       float walk_phase, float move_blend,
+                       int attack_combo, int attack_timer, float scale);
 void rigged_model_free(RiggedModel *model);
 
 #endif
