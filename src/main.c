@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "gfx.h"
+#include "rigged_model.h"
 
 PSP_MODULE_INFO("NarutoStorm4", 0, 1, 0);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
@@ -389,11 +390,6 @@ static int mission_open(int i)
     return missions[i].req < 0 || ((sv.completed >> missions[i].req) & 1u);
 }
 
-static unsigned chars_unlocked(void)
-{
-    /* All entries in this prototype roster are available in Free Battle. */
-    return 0xFFFFFFFFu;
-}
 
 static int character_unlocked(int i)
 {
@@ -412,7 +408,7 @@ typedef struct {
     int move, hitdone, frozen, burn, awk, dash_chase;
     int jcd[3];
     int sup[2], sup_idx, sup_t, sup_def;
-    float kbx, kbz, dashx, dashz, phase, burn_dps, mark_x, mark_z;
+    float kbx, kbz, dashx, dashz, phase, move_blend, burn_dps, mark_x, mark_z;
     int ai_cd, ai_mode, ai_mode_t, ai_guard, ai_charge;
 } Fighter;
 
@@ -434,6 +430,9 @@ static Fighter pl, en;
 static Proj projs[MAXP];
 static Particle parts[MAXPART];
 static float shake = 0.0f;
+static RiggedModel naruto_rigged;
+static ModelTexture naruto_rigged_texture;
+static int naruto_rigged_ready = 0;
 
 /* ---------------- game state ---------------- */
 typedef enum {
@@ -554,7 +553,13 @@ static void melee_hit(Fighter *f, Fighter *o)
     static const float kb[5] = { 0, 0.06f, 0.06f, 0.12f, 0.48f };
     int c = f->combo, hit;
     if (c < 1 || c > 4) return;
-    if (dist_xz(f->x, f->z, o->x, o->z) <= 2.4f && fabsf(f->y - o->y) < 1.6f) {
+    {
+        float dx = o->x - f->x, dz = o->z - f->z;
+        float forward = dx * f->fx + dz * f->fz;
+        float side = fabsf(dx * -f->fz + dz * f->fx);
+        /* Contact is a short forward-facing lane, not a 360-degree distance bubble. */
+        if (forward > 0.15f && forward <= 2.25f && side <= 0.95f &&
+            fabsf(f->y - o->y) < 1.6f) {
         hit = deal_damage(o, f, dmg[c], stn[c], kb[c]);
         if (hit == 1) f->chakra = fminf(100.0f, f->chakra + (c == 4 ? 8.0f : 4.0f));
         if (hit == 1 && c == 3) {
@@ -564,6 +569,7 @@ static void melee_hit(Fighter *f, Fighter *o)
         if (hit == 1 && c == 4) {
             spawn_fx(o->x, o->y + 1.3f, o->z, roster[f->def].orb, 18);
             if (shake < 0.22f) shake = 0.22f;
+        }
         }
     }
 }
@@ -785,9 +791,13 @@ static void fighter_update(Fighter *f, Fighter *o, const Input *in)
                 float ml = sqrtf(mx * mx + mz * mz);
                 float sp = d->speed * f->spd_mult * (f->awk > 0 ? 1.15f : 1.0f);
                 if (ml > 1.0f) { mx /= ml; mz /= ml; ml = 1.0f; }
+                /* Blend the walk cycle directly from the analog/D-pad magnitude.
+                   When the stick returns to center, the gait eases smoothly to idle. */
+                f->move_blend += ((in->guard ? ml * 0.45f : ml) - f->move_blend) * 0.28f;
+                if (f->move_blend < 0.005f) f->move_blend = 0.0f;
                 if (in->guard) { f->guarding = 1; sp *= 0.4f; }
                 f->x += mx * sp; f->z += mz * sp;
-                f->phase += ml * 0.35f;
+                f->phase += (ml > 0.05f) ? ml * 0.52f : 0.025f;
                 if (try_special(f, in)) break;
                 if (in->jump && !in->chakra_dash && f->y <= 0.001f) f->vy = 0.24f;
                 if (in->charge && !in->guard && !in->chakra_dash) { f->state = FS_CHARGE; f->timer = 0; }
@@ -1105,19 +1115,26 @@ static void battle_update(const SceCtrlData *pad, unsigned pressed)
     if (cine_timer > 0) { cine_timer--; camera_update(0); return; }
 
     pin = read_input(pad, pressed);
-    ai_think(&en, &pl, &ein);
     if (pl.dead) memset(&pin, 0, sizeof(pin));
+
+    /* VISUAL TEST MODE: the CPU opponent is a stationary training dummy.
+       Do not run AI, movement, guard, attacks, jutsu, or collision pushback.
+       Keep the normal target object alive so player melee/projectiles can
+       still test hit detection, damage feedback and character reactions. */
+    memset(&ein, 0, sizeof(ein));
     fighter_update(&pl, &en, &pin);
-    fighter_update(&en, &pl, &ein);
-    if (pl.dead) en.frozen = 0;
+    en.state = FS_IDLE;
+    en.move_blend = 0.0f;
+    en.y = 0.0f;
+    en.vy = 0.0f;
+    en.kbx = en.kbz = 0.0f;
+    en.stun = 0;
+    en.guarding = 0;
+    en.frozen = 0;
     if (en.dead) pl.frozen = 0;
 
     dx = en.x - pl.x; dz = en.z - pl.z; dist = sqrtf(dx * dx + dz * dz);
-    if (dist < 1.0f && dist > 0.001f) {
-        float push = (1.0f - dist) * 0.5f;
-        pl.x -= dx / dist * push; pl.z -= dz / dist * push;
-        en.x += dx / dist * push; en.z += dz / dist * push;
-    }
+    /* Intentionally no body-separation correction: the dummy must not move. */
 
     for (i = 0; i < MAXP; i++) {
         Proj *p = &projs[i];
@@ -1182,7 +1199,8 @@ static void battle_update(const SceCtrlData *pad, unsigned pressed)
 static void part(const Fighter *f, float rxo, float yo, float fzo, float w, float h, float dd, unsigned col)
 {
     float rx = -f->fz, rz = f->fx;
-    gfx_box_rot(f->x + rx * rxo + f->fx * fzo, f->y + yo, f->z + rz * rxo + f->fz * fzo,
+    float bob = (0.5f - 0.5f * cosf(f->phase * 2.0f)) * 0.055f * f->move_blend;
+    gfx_box_rot(f->x + rx * rxo + f->fx * fzo, f->y + yo + bob, f->z + rz * rxo + f->fz * fzo,
                 w, h, dd, atan2f(f->fx, f->fz), col);
 }
 
@@ -1324,7 +1342,11 @@ static void draw_fighter(const Fighter *f)
     const Def *d = &roster[f->def];
     unsigned body = d->body, acc = d->accent, hair = d->hair, skin = RGB(242, 205, 165);
     unsigned dark = RGB(25, 25, 35), eyec = RGB(25, 25, 35), belt = RGB(35, 30, 35);
-    float sw = sinf(f->phase) * 0.35f;
+    float walk = f->move_blend;
+    float stride = sinf(f->phase) * 0.42f * walk;
+    float bob = (0.5f - 0.5f * cosf(f->phase * 2.0f)) * 0.055f * walk;
+    float left_lift = fmaxf(0.0f, cosf(f->phase)) * 0.20f * walk;
+    float right_lift = fmaxf(0.0f, -cosf(f->phase)) * 0.20f * walk;
     int i, id = f->def;
     const Move *mv = (f->state == FS_JUTSU) ? &d->jut[f->move] : NULL;
 
@@ -1333,7 +1355,14 @@ static void draw_fighter(const Fighter *f)
     if (id == 5) eyec = RGB(60, 170, 90);
     if (id == 7) eyec = RGB(170, 150, 220);
 
-    gfx_box(f->x, 0.03f, f->z, 1.3f, 0.02f, 1.3f, RGB(20, 20, 20));
+    /* Soft low-poly ground shadow stays locked to the fighter's world root. */
+    {
+        float shadow_scale = 1.0f - fminf(0.45f, f->y * 0.12f);
+        if (shadow_scale < 0.55f) shadow_scale = 0.55f;
+        gfx_ellipsoid(f->x, 0.026f, f->z,
+                      1.25f * shadow_scale, 0.035f,
+                      0.78f * shadow_scale, RGB(23, 20, 28));
+    }
 
     if (f->dead) {
         gfx_box_rot(f->x, 0.28f, f->z, 0.9f, 0.55f, 1.9f, atan2f(f->fx, f->fz), body);
@@ -1360,19 +1389,31 @@ static void draw_fighter(const Fighter *f)
                     f->z + cosf(frame * 0.5f + i * 2.0f) * 0.35f, 0.3f, 0.3f, 0.3f, RGB(45, 0, 70));
     }
 
+    /* Naruto uses the imported weighted mesh. Its skeleton receives the walk
+       pose driven by the same analog magnitude that moves the fighter. */
+    if (id == 0 && naruto_rigged_ready) {
+        float gait = (f->state == FS_IDLE) ? f->move_blend : 0.0f;
+        int attack_combo = (f->state == FS_ATTACK) ? f->combo : 0;
+        int attack_timer = (f->state == FS_ATTACK) ? f->timer : 0;
+        rigged_model_draw(&naruto_rigged, &naruto_rigged_texture,
+                          f->x, f->y, f->z, atan2f(f->fx, f->fz),
+                          f->phase, gait, attack_combo, attack_timer, 1.55f);
+        return;
+    }
+
     /* legs, feet (Kaguya wears a long robe instead) */
     if (id == 7) {
         part(f, 0.0f, 0.65f, 0.0f, 1.0f, 1.3f, 0.7f, body);
         part(f, 0.0f, 0.2f, 0.0f, 1.1f, 0.2f, 0.8f, acc);
     } else {
-        gfx_ellipsoid(f->x - 0.20f, 0.53f, f->z + sw * 0.35f, 0.31f, 0.78f, 0.34f, acc);
-        gfx_ellipsoid(f->x + 0.20f, 0.53f, f->z - sw * 0.35f, 0.31f, 0.78f, 0.34f, acc);
-        part(f, -0.20f, 0.10f, sw + 0.06f, 0.30f, 0.18f, 0.46f, dark);
-        part(f,  0.20f, 0.10f, -sw + 0.06f, 0.30f, 0.18f, 0.46f, dark);
+        gfx_ellipsoid(f->x - 0.20f, 0.53f + left_lift + bob, f->z + stride, 0.31f, 0.78f, 0.34f, acc);
+        gfx_ellipsoid(f->x + 0.20f, 0.53f + right_lift + bob, f->z - stride, 0.31f, 0.78f, 0.34f, acc);
+        part(f, -0.20f, 0.10f + left_lift, stride + 0.06f, 0.30f, 0.18f, 0.46f, dark);
+        part(f,  0.20f, 0.10f + right_lift, -stride + 0.06f, 0.30f, 0.18f, 0.46f, dark);
     }
     /* belt, torso, collar/neck */
     part(f, 0.0f, 1.02f, 0.0f, 0.80f, 0.16f, 0.46f, belt);
-    gfx_ellipsoid(f->x, 1.43f, f->z, 0.82f, 0.78f, 0.50f, body);
+    gfx_ellipsoid(f->x, 1.43f + bob, f->z, 0.82f, 0.78f, 0.50f, body);
     part(f, 0.0f, 1.62f, 0.23f, 0.52f, 0.14f, 0.04f, acc);
     part(f, 0.0f, 1.82f, 0.0f, 0.22f, 0.14f, 0.22f, skin);
     /* costume panel, seams and waist trim break up flat colors */
@@ -1386,11 +1427,11 @@ static void draw_fighter(const Fighter *f)
     part(f, -0.20f, 0.18f, 0.27f, 0.28f, 0.055f, 0.035f, acc);
     part(f,  0.20f, 0.18f, 0.27f, 0.28f, 0.055f, 0.035f, acc);
     /* shoulders */
-    gfx_ellipsoid(f->x - 0.52f, 1.68f, f->z, 0.36f, 0.32f, 0.40f, body);
-    gfx_ellipsoid(f->x + 0.52f, 1.68f, f->z, 0.36f, 0.32f, 0.40f, body);
+    gfx_ellipsoid(f->x - 0.52f, 1.68f + bob, f->z, 0.36f, 0.32f, 0.40f, body);
+    gfx_ellipsoid(f->x + 0.52f, 1.68f + bob, f->z, 0.36f, 0.32f, 0.40f, body);
 
     /* head: face, eyes, hair cap */
-    gfx_ellipsoid(f->x, 2.12f, f->z, 0.62f, 0.66f, 0.58f, skin);
+    gfx_ellipsoid(f->x, 2.12f + bob, f->z, 0.62f, 0.66f, 0.58f, skin);
     if (id != 6) {
         /* brows, eyes and a small nose bridge make faces read better at gameplay distance */
         part(f, -0.145f, 2.205f, 0.285f, 0.15f, 0.035f, 0.035f, hair);
@@ -1399,7 +1440,7 @@ static void draw_fighter(const Fighter *f)
         part(f,  0.14f, 2.14f, 0.292f, 0.105f, 0.065f, 0.035f, eyec);
         part(f, 0.0f, 2.04f, 0.302f, 0.055f, 0.075f, 0.025f, RGB(220,165,130));
     }
-    gfx_ellipsoid(f->x, 2.43f, f->z - 0.02f, 0.70f, 0.30f, 0.64f, hair);
+    gfx_ellipsoid(f->x, 2.43f + bob, f->z - 0.02f, 0.70f, 0.30f, 0.64f, hair);
     /* layered hair locks give the base silhouette more anime-like depth */
     part(f, -0.23f, 2.58f, 0.02f, 0.17f, 0.34f, 0.18f, hair);
     part(f,  0.23f, 2.58f, 0.02f, 0.17f, 0.34f, 0.18f, hair);
@@ -1417,9 +1458,9 @@ static void draw_fighter(const Fighter *f)
     part(f,  0.55f, 1.10f, 0.08f, 0.29f, 0.18f, 0.31f, dark);
     part(f, -0.55f, 1.04f, 0.13f, 0.25f, 0.10f, 0.27f, acc);
     part(f,  0.55f, 1.04f, 0.13f, 0.25f, 0.10f, 0.27f, acc);
-    gfx_ellipsoid(f->x - 0.20f, 0.16f, f->z + sw * 0.35f + 0.06f,
+    gfx_ellipsoid(f->x - 0.20f, 0.16f + left_lift + bob, f->z + stride + 0.06f,
                   0.20f, 0.13f, 0.28f, dark);
-    gfx_ellipsoid(f->x + 0.20f, 0.16f, f->z - sw * 0.35f + 0.06f,
+    gfx_ellipsoid(f->x + 0.20f, 0.16f + right_lift + bob, f->z - stride + 0.06f,
                   0.20f, 0.13f, 0.28f, dark);
 
     /* Arms */
@@ -1435,13 +1476,13 @@ static void draw_fighter(const Fighter *f)
         part(f, -0.50f, 1.58f, 0.45f, 0.24f, 0.24f, 0.24f, skin);
         part(f,  0.50f, 1.40f, 0.45f, 0.24f, 0.24f, 0.24f, skin);
     } else {
-        gfx_ellipsoid(f->x - 0.55f, 1.39f, f->z - sw * 0.25f, 0.27f, 0.58f, 0.30f, body);
-        gfx_ellipsoid(f->x + 0.55f, 1.39f, f->z + sw * 0.25f, 0.27f, 0.58f, 0.30f, body);
+        gfx_ellipsoid(f->x - 0.55f, 1.39f + bob, f->z - stride * 0.70f, 0.27f, 0.58f, 0.30f, body);
+        gfx_ellipsoid(f->x + 0.55f, 1.39f + bob, f->z + stride * 0.70f, 0.27f, 0.58f, 0.30f, body);
         /* forearm guards and glove cuffs, with low polygon cost */
-        part(f, -0.56f, 1.14f, 0.08f, 0.25f, 0.12f, 0.28f, acc);
-        part(f,  0.56f, 1.14f, 0.08f, 0.25f, 0.12f, 0.28f, acc);
-        gfx_ellipsoid(f->x - 0.56f, 1.02f, f->z - sw * 0.25f, 0.22f, 0.22f, 0.22f, skin);
-        gfx_ellipsoid(f->x + 0.56f, 1.02f, f->z + sw * 0.25f, 0.22f, 0.22f, 0.22f, skin);
+        part(f, -0.56f, 1.14f, stride * 0.70f + 0.08f, 0.25f, 0.12f, 0.28f, acc);
+        part(f,  0.56f, 1.14f, -stride * 0.70f + 0.08f, 0.25f, 0.12f, 0.28f, acc);
+        gfx_ellipsoid(f->x - 0.56f, 1.02f + bob, f->z + stride * 0.70f, 0.22f, 0.22f, 0.22f, skin);
+        gfx_ellipsoid(f->x + 0.56f, 1.02f + bob, f->z - stride * 0.70f, 0.22f, 0.22f, 0.22f, skin);
     }
 
     if (f->state == FS_ATTACK) {
@@ -1918,11 +1959,17 @@ int main(void)
 {
     SceCtrlData pad;
     unsigned prev = 0, pressed;
-    static const char *items[4] = { "STORY MODE", "FREE BATTLE", "CHARACTERS", "EXIT" };
+    static const char *items[2] = { "FREE BATTLE", "EXIT" };
     int i;
 
     setup_callbacks();
     gfx_init();
+    if (rigged_model_load(&naruto_rigged, "assets/chr/test/naruto_rigged.nrig") == 0) {
+        if (model_texture_load(&naruto_rigged_texture, "assets/chr/test/naruto_rigged.nmtx") == 0)
+            naruto_rigged_ready = 1;
+        else
+            rigged_model_free(&naruto_rigged);
+    }
     sceCtrlSetSamplingCycle(0);
     sceCtrlSetSamplingMode(PSP_CTRL_MODE_ANALOG);
     save_load();
@@ -1938,12 +1985,11 @@ int main(void)
         /* ---- update ---- */
         switch (gstate) {
         case GS_MENU:
-            if (pressed & PSP_CTRL_UP)   menu_sel = (menu_sel + 3) % 4;
-            if (pressed & PSP_CTRL_DOWN) menu_sel = (menu_sel + 1) % 4;
+            if (pressed & PSP_CTRL_UP)   menu_sel = (menu_sel + 1) % 2;
+            if (pressed & PSP_CTRL_DOWN) menu_sel = (menu_sel + 1) % 2;
             if (pressed & PSP_CTRL_CROSS) {
-                if (menu_sel == 3) sceKernelExitGame();
-                else if (menu_sel == 0) { reset_confirm = 0; gstate = GS_STORY; }
-                else { select_mode = (menu_sel == 2); gstate = GS_SELECT; }
+                if (menu_sel == 1) sceKernelExitGame();
+                else { select_mode = 0; select_idx = 0; gstate = GS_SELECT; }
             }
             break;
         case GS_SELECT:
@@ -1957,7 +2003,7 @@ int main(void)
             if (pressed & PSP_CTRL_CIRCLE) gstate = GS_MENU;
             if ((pressed & PSP_CTRL_CROSS) && !select_mode) {
                 if (character_unlocked(select_idx)) start_free_battle(select_idx);
-                else set_note("CHARACTER LOCKED - SEE STORY MODE");
+                else set_note("FIGHTER NOT AVAILABLE");
             }
             break;
         case GS_STORY:
@@ -2016,10 +2062,8 @@ int main(void)
         /* ---- render ---- */
         switch (gstate) {
         case GS_MENU: {
-            static const char *descs[4] = {
-                "FOLLOW THE SHINOBI STORY",
-                "CHOOSE YOUR FIGHTER AND BATTLE",
-                "VIEW THE AVAILABLE FIGHTERS",
+            static const char *descs[2] = {
+                "CHOOSE YOUR FIGHTER AND ENTER FREE BATTLE",
                 "RETURN TO PPSSPP"
             };
             unsigned pulse = (unsigned)(35 + (sinf(frame * 0.08f) + 1.0f) * 20.0f);
@@ -2044,9 +2088,9 @@ int main(void)
             gfx_text(24, 43, 3, RGB(255, 255, 255), "STORM");
             gfx_text(24, 66, 3, RGB(255, 220, 85), "SHINOBI ARENA");
             gfx_rect(24, 94, 176, 2, RGB(255, 145, 35));
-            gfx_text(24, 103, 1, RGB(170, 195, 255), "MAIN BATTLE MENU");
-            for (i = 0; i < 4; i++) {
-                float y = 125.0f + i * 27.0f;
+            gfx_text(24, 103, 1, RGB(170, 195, 255), "FREE BATTLE ONLY");
+            for (i = 0; i < 2; i++) {
+                float y = 145.0f + i * 38.0f;
                 if (i == menu_sel) {
                     gfx_rect(20, y - 4, 184, 23, RGBA(255, 135, 30, 215));
                     gfx_rect(20, y - 4, 4, 23, RGB(255, 235, 155));
@@ -2067,9 +2111,13 @@ int main(void)
         }
         case GS_SELECT: {
             char buf[64];
-            const Def *sd = &roster[select_idx];
-            int unlocked = character_unlocked(select_idx);
-            int page_start = (select_idx / 24) * 24;
+            int draw_idx = select_idx;
+            const Def *sd;
+            int unlocked, page_start;
+            if (draw_idx < 0 || draw_idx >= NUM_CHARS) draw_idx = 0;
+            sd = &roster[draw_idx];
+            unlocked = character_unlocked(draw_idx);
+            page_start = (draw_idx / 24) * 24;
             int page_count = NUM_CHARS - page_start;
             if (page_count > 24) page_count = 24;
             gfx_begin(RGB(8, 12, 32));
@@ -2112,12 +2160,12 @@ int main(void)
             gfx_3d();
             gfx_camera(2.45f, 2.1f, 6.0f, 2.45f, 1.25f, 0.0f);
             gfx_box(2.45f, -0.05f, 0, 4.5f, 0.1f, 4.5f, RGB(54, 63, 99));
-            draw_preview(select_idx, menu_angle, 2.45f);
+            draw_preview(draw_idx, menu_angle, 2.45f);
             gfx_2d();
             gfx_text(220, 44, 1, RGB(175, 195, 230), "SELECTED SHINOBI");
             gfx_text(220, 190, 2, unlocked ? RGB(255, 230, 150) : RGB(255, 100, 100), sd->name);
             if (!unlocked) {
-                sprintf(buf, "LOCKED: %s", unlock_hint[select_idx]);
+                sprintf(buf, "LOCKED: %s", unlock_hint[draw_idx]);
                 gfx_text(220, 211, 1, RGB(255, 125, 125), buf);
             } else {
                 sprintf(buf, "HP %d", sd->hp);
