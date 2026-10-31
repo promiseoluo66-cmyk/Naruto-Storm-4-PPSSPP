@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "gfx.h"
+#include "rigged_model.h"
 
 PSP_MODULE_INFO("NarutoStorm4", 0, 1, 0);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
@@ -434,6 +435,9 @@ static Fighter pl, en;
 static Proj projs[MAXP];
 static Particle parts[MAXPART];
 static float shake = 0.0f;
+static RiggedModel naruto_rigged;
+static ModelTexture naruto_rigged_texture;
+static int naruto_rigged_ready = 0;
 
 /* ---------------- game state ---------------- */
 typedef enum {
@@ -1369,6 +1373,16 @@ static void draw_fighter(const Fighter *f)
                     f->z + cosf(frame * 0.5f + i * 2.0f) * 0.35f, 0.3f, 0.3f, 0.3f, RGB(45, 0, 70));
     }
 
+    /* Naruto uses the imported weighted mesh. Its skeleton receives the walk
+       pose driven by the same analog magnitude that moves the fighter. */
+    if (id == 0 && naruto_rigged_ready) {
+        float gait = (f->state == FS_IDLE) ? f->move_blend : 0.0f;
+        rigged_model_draw(&naruto_rigged, &naruto_rigged_texture,
+                          f->x, f->y, f->z, atan2f(f->fx, f->fz),
+                          f->phase, gait, 1.55f);
+        return;
+    }
+
     /* legs, feet (Kaguya wears a long robe instead) */
     if (id == 7) {
         part(f, 0.0f, 0.65f, 0.0f, 1.0f, 1.3f, 0.7f, body);
@@ -1927,11 +1941,17 @@ int main(void)
 {
     SceCtrlData pad;
     unsigned prev = 0, pressed;
-    static const char *items[4] = { "STORY MODE", "FREE BATTLE", "CHARACTERS", "EXIT" };
+    static const char *items[2] = { "FREE BATTLE", "EXIT" };
     int i;
 
     setup_callbacks();
     gfx_init();
+    if (rigged_model_load(&naruto_rigged, "assets/chr/test/naruto_rigged.nrig") == 0) {
+        if (model_texture_load(&naruto_rigged_texture, "assets/chr/test/naruto_rigged.nmtx") == 0)
+            naruto_rigged_ready = 1;
+        else
+            rigged_model_free(&naruto_rigged);
+    }
     sceCtrlSetSamplingCycle(0);
     sceCtrlSetSamplingMode(PSP_CTRL_MODE_ANALOG);
     save_load();
@@ -1947,12 +1967,11 @@ int main(void)
         /* ---- update ---- */
         switch (gstate) {
         case GS_MENU:
-            if (pressed & PSP_CTRL_UP)   menu_sel = (menu_sel + 3) % 4;
-            if (pressed & PSP_CTRL_DOWN) menu_sel = (menu_sel + 1) % 4;
+            if (pressed & PSP_CTRL_UP)   menu_sel = (menu_sel + 1) % 2;
+            if (pressed & PSP_CTRL_DOWN) menu_sel = (menu_sel + 1) % 2;
             if (pressed & PSP_CTRL_CROSS) {
-                if (menu_sel == 3) sceKernelExitGame();
-                else if (menu_sel == 0) { reset_confirm = 0; gstate = GS_STORY; }
-                else { select_mode = (menu_sel == 2); gstate = GS_SELECT; }
+                if (menu_sel == 1) sceKernelExitGame();
+                else { select_mode = 0; select_idx = 0; gstate = GS_SELECT; }
             }
             break;
         case GS_SELECT:
@@ -1966,7 +1985,7 @@ int main(void)
             if (pressed & PSP_CTRL_CIRCLE) gstate = GS_MENU;
             if ((pressed & PSP_CTRL_CROSS) && !select_mode) {
                 if (character_unlocked(select_idx)) start_free_battle(select_idx);
-                else set_note("CHARACTER LOCKED - SEE STORY MODE");
+                else set_note("FIGHTER NOT AVAILABLE");
             }
             break;
         case GS_STORY:
@@ -2025,10 +2044,8 @@ int main(void)
         /* ---- render ---- */
         switch (gstate) {
         case GS_MENU: {
-            static const char *descs[4] = {
-                "FOLLOW THE SHINOBI STORY",
-                "CHOOSE YOUR FIGHTER AND BATTLE",
-                "VIEW THE AVAILABLE FIGHTERS",
+            static const char *descs[2] = {
+                "CHOOSE YOUR FIGHTER AND ENTER FREE BATTLE",
                 "RETURN TO PPSSPP"
             };
             unsigned pulse = (unsigned)(35 + (sinf(frame * 0.08f) + 1.0f) * 20.0f);
@@ -2053,9 +2070,9 @@ int main(void)
             gfx_text(24, 43, 3, RGB(255, 255, 255), "STORM");
             gfx_text(24, 66, 3, RGB(255, 220, 85), "SHINOBI ARENA");
             gfx_rect(24, 94, 176, 2, RGB(255, 145, 35));
-            gfx_text(24, 103, 1, RGB(170, 195, 255), "MAIN BATTLE MENU");
-            for (i = 0; i < 4; i++) {
-                float y = 125.0f + i * 27.0f;
+            gfx_text(24, 103, 1, RGB(170, 195, 255), "FREE BATTLE ONLY");
+            for (i = 0; i < 2; i++) {
+                float y = 145.0f + i * 38.0f;
                 if (i == menu_sel) {
                     gfx_rect(20, y - 4, 184, 23, RGBA(255, 135, 30, 215));
                     gfx_rect(20, y - 4, 4, 23, RGB(255, 235, 155));
