@@ -1115,19 +1115,26 @@ static void battle_update(const SceCtrlData *pad, unsigned pressed)
     if (cine_timer > 0) { cine_timer--; camera_update(0); return; }
 
     pin = read_input(pad, pressed);
-    ai_think(&en, &pl, &ein);
     if (pl.dead) memset(&pin, 0, sizeof(pin));
+
+    /* VISUAL TEST MODE: the CPU opponent is a stationary training dummy.
+       Do not run AI, movement, guard, attacks, jutsu, or collision pushback.
+       Keep the normal target object alive so player melee/projectiles can
+       still test hit detection, damage feedback and character reactions. */
+    memset(&ein, 0, sizeof(ein));
     fighter_update(&pl, &en, &pin);
-    fighter_update(&en, &pl, &ein);
-    if (pl.dead) en.frozen = 0;
+    en.state = FS_IDLE;
+    en.move_blend = 0.0f;
+    en.y = 0.0f;
+    en.vy = 0.0f;
+    en.kbx = en.kbz = 0.0f;
+    en.stun = 0;
+    en.guarding = 0;
+    en.frozen = 0;
     if (en.dead) pl.frozen = 0;
 
     dx = en.x - pl.x; dz = en.z - pl.z; dist = sqrtf(dx * dx + dz * dz);
-    if (dist < 1.0f && dist > 0.001f) {
-        float push = (1.0f - dist) * 0.5f;
-        pl.x -= dx / dist * push; pl.z -= dz / dist * push;
-        en.x += dx / dist * push; en.z += dz / dist * push;
-    }
+    /* Intentionally no body-separation correction: the dummy must not move. */
 
     for (i = 0; i < MAXP; i++) {
         Proj *p = &projs[i];
