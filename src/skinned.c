@@ -54,6 +54,47 @@ static void mat_mul(float out[12], const float a[12], const float b[12])
     memcpy(out, r, sizeof(r));
 }
 
+static float vec3_normalize(float v[3])
+{
+    float len = sqrtf(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+    if (len < 0.00001f) return 0.0f;
+    v[0] /= len; v[1] /= len; v[2] /= len;
+    return len;
+}
+
+/* Blend two rigid local transforms without introducing scale/shear. */
+static void mat_blend_rigid(float out[12], const float a[12],
+                            const float b[12], float t)
+{
+    float x[3], y[3], z[3], dot;
+    x[0] = a[0] + (b[0] - a[0]) * t;
+    x[1] = a[4] + (b[4] - a[4]) * t;
+    x[2] = a[8] + (b[8] - a[8]) * t;
+    y[0] = a[1] + (b[1] - a[1]) * t;
+    y[1] = a[5] + (b[5] - a[5]) * t;
+    y[2] = a[9] + (b[9] - a[9]) * t;
+    if (vec3_normalize(x) < 0.00001f) {
+        x[0] = b[0]; x[1] = b[4]; x[2] = b[8];
+    }
+    dot = x[0]*y[0] + x[1]*y[1] + x[2]*y[2];
+    y[0] -= dot*x[0]; y[1] -= dot*x[1]; y[2] -= dot*x[2];
+    if (vec3_normalize(y) < 0.00001f) {
+        y[0] = b[1]; y[1] = b[5]; y[2] = b[9];
+        dot = x[0]*y[0] + x[1]*y[1] + x[2]*y[2];
+        y[0] -= dot*x[0]; y[1] -= dot*x[1]; y[2] -= dot*x[2];
+        if (vec3_normalize(y) < 0.00001f) {
+            y[0] = 0.0f; y[1] = 1.0f; y[2] = 0.0f;
+        }
+    }
+    z[0] = x[1]*y[2] - x[2]*y[1];
+    z[1] = x[2]*y[0] - x[0]*y[2];
+    z[2] = x[0]*y[1] - x[1]*y[0];
+    memcpy(out, b, 12 * sizeof(float));
+    out[0] = x[0]; out[4] = x[1]; out[8] = x[2];
+    out[1] = y[0]; out[5] = y[1]; out[9] = y[2];
+    out[2] = z[0]; out[6] = z[1]; out[10] = z[2];
+}
+
 static void mat_inverse_rigid(float out[12], const float m[12])
 {
     /* Inverse of a rotation + translation matrix. */
@@ -159,6 +200,8 @@ static void pose_bone(const SkinBone *bone, float local[12], const SkinPose *pos
     float strike = strike_curve((float)pose->timer /
                                 (pose->combo == 4 ? 18.0f : 12.0f));
     float air = clamp01(pose->height / 2.35f);
+    float rising = clamp01(pose->vertical_velocity / 0.24f);
+    float falling = clamp01(-pose->vertical_velocity / 0.18f);
     float side, yaw = 0.0f, elbow = 0.0f, lift = 0.0f;
     float thigh = 0.0f, knee = 0.0f, foot = 0.0f;
     float attack_body = strike;
@@ -181,7 +224,7 @@ static void pose_bone(const SkinBone *bone, float local[12], const SkinPose *pos
         float lean = 0.0f;
         if (running) lean = 0.16f;
         else if (pose->action == SKIN_ACTION_DASH) lean = 0.27f;
-        else if (pose->action == SKIN_ACTION_JUMP) lean = -0.04f * air;
+        else if (pose->action == SKIN_ACTION_JUMP) lean = -0.04f * air + 0.10f * falling;
         else if (pose->action == SKIN_ACTION_GUARD) lean = 0.06f;
         else if (attacking) lean = 0.07f * attack_body;
         else if (pose->action == SKIN_ACTION_HIT) lean = -0.18f;
@@ -196,7 +239,7 @@ static void pose_bone(const SkinBone *bone, float local[12], const SkinPose *pos
         float lean = 0.0f;
         if (running) lean = 0.22f;
         else if (pose->action == SKIN_ACTION_DASH) lean = 0.34f;
-        else if (pose->action == SKIN_ACTION_JUMP) lean = -0.08f * air;
+        else if (pose->action == SKIN_ACTION_JUMP) lean = -0.08f * air + 0.06f * falling;
         else if (pose->action == SKIN_ACTION_GUARD) lean = 0.07f;
         else if (attacking) lean = 0.12f * attack_body;
         else if (pose->action == SKIN_ACTION_HIT) lean = -0.24f;
@@ -245,7 +288,7 @@ static void pose_bone(const SkinBone *bone, float local[12], const SkinPose *pos
             lift = -side * 0.24f;
         } else if (pose->action == SKIN_ACTION_JUMP) {
             yaw = -side * 0.42f;
-            lift = -side * (0.55f + 0.22f * air);
+            lift = -side * (0.46f + 0.20f * air + 0.16f * rising - 0.10f * falling);
         } else if (pose->action == SKIN_ACTION_DASH) {
             yaw = side * 1.08f;
             lift = 0.10f;
@@ -288,7 +331,7 @@ static void pose_bone(const SkinBone *bone, float local[12], const SkinPose *pos
         side = joint_side(n);
         if (running) elbow = side * (0.12f + 0.035f * gait);
         else if (pose->action == SKIN_ACTION_GUARD) elbow = -side * 0.82f;
-        else if (pose->action == SKIN_ACTION_JUMP) elbow = -side * 0.48f;
+        else if (pose->action == SKIN_ACTION_JUMP) elbow = -side * (0.34f + 0.28f * air + 0.10f * falling);
         else if (pose->action == SKIN_ACTION_DASH) elbow = side * 0.10f;
         else if (pose->action == SKIN_ACTION_JUTSU) elbow = -side * 0.72f;
         else if (pose->action == SKIN_ACTION_HIT) elbow = side * 0.20f;
@@ -329,7 +372,7 @@ static void pose_bone(const SkinBone *bone, float local[12], const SkinPose *pos
         name_is(n, "L_hlegEX") || name_is(n, "R_hlegEX")) {
         side = joint_side(n);
         if (running) thigh = -side * 0.42f * gait;
-        else if (pose->action == SKIN_ACTION_JUMP) thigh = -side * (0.30f + 0.34f * air);
+        else if (pose->action == SKIN_ACTION_JUMP) thigh = -side * (0.22f + 0.35f * air + 0.10f * rising - 0.08f * falling);
         else if (pose->action == SKIN_ACTION_DASH) thigh = -side * 0.24f;
         else if (pose->action == SKIN_ACTION_HIT) thigh = side * 0.12f;
         else if (attacking && pose->combo == 3 && side < 0.0f)
@@ -346,7 +389,7 @@ static void pose_bone(const SkinBone *bone, float local[12], const SkinPose *pos
     if (name_is(n, "L_lleg") || name_is(n, "R_lleg")) {
         side = joint_side(n);
         if (running) knee = 0.10f + 0.52f * fmaxf(0.0f, -side * gait);
-        else if (pose->action == SKIN_ACTION_JUMP) knee = 0.48f + 0.30f * air;
+        else if (pose->action == SKIN_ACTION_JUMP) knee = 0.34f + 0.34f * air + 0.22f * falling;
         else if (attacking && pose->combo == 3 && side < 0.0f)
             knee = lerp(0.54f, 0.04f, strike);
         else if (attacking && pose->combo_dir < 0 && side < 0.0f)
@@ -364,8 +407,8 @@ static void pose_bone(const SkinBone *bone, float local[12], const SkinPose *pos
             knee = 0.10f + 0.52f * fmaxf(0.0f, -side * gait);
             foot = -0.48f * thigh - 0.38f * knee;
         } else if (pose->action == SKIN_ACTION_JUMP) {
-            thigh = -side * (0.30f + 0.34f * air);
-            knee = 0.48f + 0.30f * air;
+            thigh = -side * (0.22f + 0.35f * air + 0.10f * rising - 0.08f * falling);
+            knee = 0.34f + 0.34f * air + 0.22f * falling;
             foot = -0.30f * thigh - 0.55f * knee;
         } else if (attacking && pose->combo == 3 && side < 0.0f) {
             thigh = side * (0.15f + 1.05f * strike);
@@ -544,16 +587,44 @@ void skinned_draw(const SkinnedMesh *mesh, SkinnedInstance *instance,
         pose = &idle_pose;
     }
 
-    for (i = 0; i < mesh->bone_count; i++) {
-        float local[12];
-        const SkinBone *bone = &mesh->bones[i];
-        memcpy(local, bone->local_bind, sizeof(local));
-        pose_bone(bone, local, pose);
-        if (bone->parent < 0)
+    if (!instance->pose_valid) {
+        instance->last_pose = *pose;
+        instance->transition_pose = *pose;
+        instance->pose_valid = 1;
+        instance->blend_frames_left = 0;
+    } else {
+        if (pose->action != instance->last_pose.action ||
+            pose->combo != instance->last_pose.combo ||
+            pose->combo_dir != instance->last_pose.combo_dir) {
+            instance->transition_pose = instance->last_pose;
+            instance->blend_frames_left = 5;
+        }
+        instance->last_pose = *pose;
+    }
+
+    {
+        float blend = 1.0f;
+        if (instance->blend_frames_left > 0) {
+            blend = 1.0f - (float)instance->blend_frames_left / 5.0f;
+            instance->blend_frames_left--;
+        }
+        for (i = 0; i < mesh->bone_count; i++) {
+            float local[12];
+            const SkinBone *bone = &mesh->bones[i];
+            memcpy(local, bone->local_bind, sizeof(local));
+            pose_bone(bone, local, pose);
+            if (blend < 1.0f) {
+                float previous[12];
+                memcpy(previous, bone->local_bind, sizeof(previous));
+                pose_bone(bone, previous, &instance->transition_pose);
+                mat_blend_rigid(local, previous, local, blend);
+            }
+            if (bone->parent < 0)
             memcpy(instance->global[i], local, sizeof(local));
         else
             mat_mul(instance->global[i], instance->global[bone->parent], local);
-        mat_mul(instance->skin[i], instance->global[i], bone->inverse_bind);
+            mat_mul(instance->skin[i], instance->global[i], bone->inverse_bind);
+        }
     }
 
     for (i = 0; i < mesh->vertex_count; i++) {
