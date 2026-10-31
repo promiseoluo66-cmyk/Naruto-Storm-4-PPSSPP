@@ -124,12 +124,17 @@ static float lerp(float a, float b, float t)
     return a + (b - a) * t;
 }
 
-/* Wind-up -> contact -> recovery curve, with eased joins. */
-static float strike_curve(float t)
+/* Smooth timing windows used by the anticipation, drive and recoil phases. */
+static float range_curve(float t, float begin, float end)
 {
-    if (t < 0.22f) return lerp(0.0f, 0.16f, smooth01(t / 0.22f));
-    if (t < 0.50f) return lerp(0.16f, 1.0f, smooth01((t - 0.22f) / 0.28f));
-    return lerp(1.0f, 0.0f, smooth01((t - 0.50f) / 0.50f));
+    return smooth01((t - begin) / (end - begin));
+}
+
+static float pulse_curve(float t, float rise_begin, float rise_end,
+                         float fall_begin, float fall_end)
+{
+    return range_curve(t, rise_begin, rise_end) *
+           (1.0f - range_curve(t, fall_begin, fall_end));
 }
 
 /* Rodrigues rotation, expressed around an arbitrary bone-local unit axis. */
@@ -197,29 +202,42 @@ static void pose_bone(const SkinBone *bone, float local[12], const SkinPose *pos
     const float lateral_x = 1.0f, lateral_y = 0.0f, lateral_z = 0.0f;
     const float depth_x = 0.0f, depth_y = 1.0f, depth_z = 0.0f;
     float gait = sinf(pose->phase * 0.55f);
-    /* Contact is frame 5 for every combo step; align the pose peak to impact. */
-    float strike = strike_curve((float)pose->timer / 12.0f);
+    float t = clamp01((float)pose->timer / 12.0f);
+    /*
+     * One readable foundation punch, not a combo choreography:
+     * chamber -> accelerating drive -> shoulder follow-through -> recovery.
+     * Contact is aligned with the game's melee hit at frame 5.
+     */
+    float chamber = pulse_curve(t, 0.02f, 0.16f, 0.18f, 0.39f);
+    float drive = pulse_curve(t, 0.16f, 0.43f, 0.58f, 0.96f);
+    float follow = pulse_curve(t, 0.36f, 0.58f, 0.72f, 0.97f);
+    float recovery = range_curve(t, 0.58f, 1.0f);
+    float breath = sinf(pose->phase * 0.13f);
+    float sway = sinf(pose->phase * 0.075f);
     float air = clamp01(pose->height / 2.35f);
     float rising = clamp01(pose->vertical_velocity / 0.24f);
     float falling = clamp01(-pose->vertical_velocity / 0.18f);
     float side, yaw = 0.0f, elbow = 0.0f, lift = 0.0f;
-    float thigh = 0.0f, knee = 0.0f, foot = 0.0f, abduct = 0.0f;
-    float attack_body = strike;
+    float thigh = 0.0f, knee = 0.0f, foot = 0.0f;
     int attacking = pose->action == SKIN_ACTION_ATTACK;
     int running = pose->action == SKIN_ACTION_RUN;
+    int guarding = pose->action == SKIN_ACTION_GUARD ||
+                   pose->action == SKIN_ACTION_IDLE;
 
     if (name_is(n, "hip")) {
         if (running) {
-            /* Lower the pelvis as well as pitching the torso: a real sprint crouch. */
             local[11] -= 0.11f;
-            rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, 0.07f * gait);
+            rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z,
+                              0.07f * gait);
         } else if (attacking) {
-            float twist = 0.0f;
-            if (pose->combo == 1) twist = -0.08f;
-            else if (pose->combo == 2) twist = 0.18f * attack_body;
-            else if (pose->combo == 3) twist = -0.18f * attack_body;
-            else if (pose->combo == 4) twist = 0.22f * attack_body;
-            rotate_model_axis(bone, local, up_x, up_y, up_z, twist);
+            /* The hips start the turn; the chest and punching shoulder follow. */
+            local[11] -= 0.025f * chamber + 0.018f * drive;
+            rotate_model_axis(bone, local, up_x, up_y, up_z,
+                              -0.055f * chamber + 0.075f * drive + 0.065f * follow);
+        } else if (guarding) {
+            rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z,
+                              0.012f * sway);
+            rotate_model_axis(bone, local, up_x, up_y, up_z, 0.012f * sway);
         } else if (pose->action == SKIN_ACTION_HIT) {
             rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, -0.08f);
         }
@@ -231,15 +249,14 @@ static void pose_bone(const SkinBone *bone, float local[12], const SkinPose *pos
         if (running) lean = 0.34f;
         else if (pose->action == SKIN_ACTION_DASH) lean = 0.38f;
         else if (pose->action == SKIN_ACTION_JUMP) lean = -0.04f * air + 0.10f * falling;
-        else if (pose->action == SKIN_ACTION_GUARD || pose->action == SKIN_ACTION_IDLE) lean = 0.10f;
-        else if (attacking) lean = 0.05f * attack_body;
-        else if (pose->action == SKIN_ACTION_HIT) lean = -0.18f;
-        if (attacking) {
-            if (pose->combo == 1) twist = -0.13f * attack_body;
-            else if (pose->combo == 2) twist = 0.22f * attack_body;
-            else if (pose->combo == 3) twist = -0.28f * attack_body;
-            else if (pose->combo == 4) twist = 0.24f * attack_body;
-        }
+        else if (guarding) {
+            lean = 0.09f + 0.012f * breath;
+            twist = 0.022f * sway;
+        } else if (attacking) {
+            lean = 0.05f * chamber + 0.14f * drive + 0.06f * follow;
+            twist = -0.16f * chamber + 0.29f * drive + 0.19f * follow -
+                    0.10f * recovery;
+        } else if (pose->action == SKIN_ACTION_HIT) lean = -0.18f;
         rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, lean);
         rotate_model_axis(bone, local, up_x, up_y, up_z, twist);
         return;
@@ -250,16 +267,16 @@ static void pose_bone(const SkinBone *bone, float local[12], const SkinPose *pos
         if (running) lean = 0.43f;
         else if (pose->action == SKIN_ACTION_DASH) lean = 0.42f;
         else if (pose->action == SKIN_ACTION_JUMP) lean = -0.08f * air + 0.06f * falling;
-        else if (pose->action == SKIN_ACTION_GUARD || pose->action == SKIN_ACTION_IDLE) lean = 0.13f;
-        else if (attacking) lean = 0.10f * attack_body;
-        else if (pose->action == SKIN_ACTION_HIT) lean = -0.24f;
-        else lean = sinf(pose->phase * 0.11f) * 0.012f;
-        if (attacking) {
-            if (pose->combo == 1) twist = -0.18f * attack_body;
-            else if (pose->combo == 2) twist = 0.32f * attack_body;
-            else if (pose->combo == 3) twist = -0.40f * attack_body;
-            else if (pose->combo == 4) twist = 0.30f * attack_body;
-        }
+        else if (guarding) {
+            lean = 0.12f + 0.018f * breath;
+            twist = 0.028f * sway;
+        } else if (attacking) {
+            /* Chest rotation lags the pelvis slightly, then carries past contact. */
+            lean = 0.06f * chamber + 0.16f * drive + 0.045f * follow;
+            twist = -0.22f * chamber + 0.44f * drive + 0.18f * follow -
+                    0.10f * recovery;
+        } else if (pose->action == SKIN_ACTION_HIT) lean = -0.24f;
+        else lean = 0.012f * breath;
         rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, lean);
         rotate_model_axis(bone, local, up_x, up_y, up_z, twist);
         return;
@@ -270,10 +287,14 @@ static void pose_bone(const SkinBone *bone, float local[12], const SkinPose *pos
         if (running) pitch = -0.13f;
         else if (pose->action == SKIN_ACTION_DASH) pitch = -0.18f;
         else if (pose->action == SKIN_ACTION_JUMP) pitch = 0.04f * air;
-        else if (attacking) pitch = -0.10f * attack_body;
-        else if (pose->action == SKIN_ACTION_HIT) pitch = 0.18f;
+        else if (guarding) {
+            pitch = -0.012f * breath;
+            yaw_head = 0.018f * sway;
+        } else if (attacking) {
+            pitch = -0.075f * drive - 0.045f * follow + 0.035f * recovery;
+            yaw_head = 0.045f * drive + 0.025f * follow;
+        } else if (pose->action == SKIN_ACTION_HIT) pitch = 0.18f;
         if (name_is(n, "head")) pitch *= 0.70f;
-        if (attacking) yaw_head = (pose->combo_dir > 0 ? -0.08f : 0.08f) * attack_body;
         rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, pitch);
         rotate_model_axis(bone, local, up_x, up_y, up_z, yaw_head);
         return;
@@ -284,15 +305,24 @@ static void pose_bone(const SkinBone *bone, float local[12], const SkinPose *pos
         if (running) {
             rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, 0.06f);
             rotate_model_axis(bone, local, depth_x, depth_y, depth_z, side * 0.12f);
-        } else if (pose->action == SKIN_ACTION_GUARD || pose->action == SKIN_ACTION_IDLE) {
-            /* Positive side-signed depth rotation lowers both T-pose arms. */
-            rotate_model_axis(bone, local, depth_x, depth_y, depth_z, side * 0.22f);
-            rotate_model_axis(bone, local, up_x, up_y, up_z, -side * 0.06f);
-        } else if (attacking) {
-            rotate_model_axis(bone, local, up_x, up_y, up_z,
-                              -side * 0.10f * attack_body);
+        } else if (guarding) {
             rotate_model_axis(bone, local, depth_x, depth_y, depth_z,
-                              side * 0.12f * attack_body);
+                              side * (0.22f + 0.018f * breath));
+            rotate_model_axis(bone, local, up_x, up_y, up_z,
+                              -side * (0.06f + 0.012f * sway));
+        } else if (attacking) {
+            /* Left shoulder leads; right shoulder stays engaged as a guard. */
+            if (side > 0.0f) {
+                rotate_model_axis(bone, local, up_x, up_y, up_z,
+                                  -side * (0.08f * chamber + 0.16f * drive +
+                                           0.04f * follow));
+                rotate_model_axis(bone, local, depth_x, depth_y, depth_z,
+                                  side * (0.08f * chamber + 0.15f * drive));
+            } else {
+                rotate_model_axis(bone, local, up_x, up_y, up_z, side * 0.035f * drive);
+                rotate_model_axis(bone, local, depth_x, depth_y, depth_z,
+                                  side * 0.045f * drive);
+            }
         }
         return;
     }
@@ -301,13 +331,12 @@ static void pose_bone(const SkinBone *bone, float local[12], const SkinPose *pos
         name_is(n, "L_harmEX") || name_is(n, "R_harmEX")) {
         side = joint_side(n);
         if (running) {
-            /* Classic Naruto ninja run: both upper arms trail behind the torso. */
+            /* Naruto run: both upper arms trail behind the forward-pitched torso. */
             yaw = side * (1.28f + 0.055f * gait);
             lift = side * (0.06f + 0.025f * gait);
-        } else if (pose->action == SKIN_ACTION_GUARD || pose->action == SKIN_ACTION_IDLE) {
-            /* Ready-to-fight silhouette: shoulders down, fists in front, elbows bent. */
-            yaw = -side * 0.58f;
-            lift = side * 0.62f;
+        } else if (guarding) {
+            yaw = -side * (0.58f + 0.025f * sway);
+            lift = side * (0.62f + 0.018f * breath);
         } else if (pose->action == SKIN_ACTION_JUMP) {
             yaw = -side * 0.42f;
             lift = -side * (0.46f + 0.20f * air + 0.16f * rising - 0.10f * falling);
@@ -321,26 +350,17 @@ static void pose_bone(const SkinBone *bone, float local[12], const SkinPose *pos
             yaw = side * 0.34f;
             lift = -side * 0.18f;
         } else if (attacking) {
-            int lead_strike = (pose->combo == 1 || pose->combo == 3) && side > 0.0f;
-            int rear_strike = pose->combo == 2 && side < 0.0f;
-            if (lead_strike) {
-                /* Jab (1) and bent lead hook (3). */
-                yaw = -side * (pose->combo == 3 ? 0.62f + 0.72f * strike
-                                                : 0.30f + 0.98f * strike);
-                lift = side * (pose->combo == 3 ? 0.32f + 0.22f * strike
-                                               : 0.14f + 0.18f * strike);
-            } else if (rear_strike) {
-                /* Rear cross: torso turns through the shoulder, not just the hand. */
-                yaw = -side * (0.42f + 1.12f * strike);
-                lift = side * (0.18f + 0.20f * strike);
+            if (side > 0.0f) {
+                /* A single left straight punch with a bent elbow, not a locked arm. */
+                yaw = -side * (0.24f - 0.28f * chamber + 0.98f * drive +
+                               0.18f * follow - 0.10f * recovery);
+                lift = side * (0.26f + 0.12f * chamber + 0.12f * drive +
+                               0.02f * follow);
             } else {
-                /* Non-striking hand stays up in guard; combo four is the side kick. */
-                yaw = -side * 0.58f;
-                lift = side * 0.58f;
+                /* The non-punching fist stays up and reacts slightly to the body turn. */
+                yaw = -side * (0.58f - 0.05f * drive + 0.02f * follow);
+                lift = side * (0.62f + 0.07f * drive + 0.03f * follow);
             }
-        } else {
-            yaw = -side * 0.58f;
-            lift = side * 0.62f;
         }
         if (strstr(n, "EX") != NULL) { yaw *= 0.45f; lift *= 0.45f; }
         rotate_model_axis(bone, local, up_x, up_y, up_z, yaw);
@@ -352,21 +372,19 @@ static void pose_bone(const SkinBone *bone, float local[12], const SkinPose *pos
         name_is(n, "L_larmEX") || name_is(n, "R_larmEX")) {
         side = joint_side(n);
         if (running) elbow = side * (0.18f + 0.05f * gait);
-        else if (pose->action == SKIN_ACTION_GUARD || pose->action == SKIN_ACTION_IDLE)
-            elbow = -side * 0.88f;
-        else if (pose->action == SKIN_ACTION_JUMP) elbow = -side * (0.34f + 0.28f * air + 0.10f * falling);
+        else if (guarding) elbow = -side * (0.88f + 0.025f * breath);
+        else if (pose->action == SKIN_ACTION_JUMP)
+            elbow = -side * (0.34f + 0.28f * air + 0.10f * falling);
         else if (pose->action == SKIN_ACTION_DASH) elbow = side * 0.10f;
         else if (pose->action == SKIN_ACTION_JUTSU) elbow = -side * 0.72f;
         else if (pose->action == SKIN_ACTION_HIT) elbow = side * 0.20f;
         else if (attacking) {
-            int jab_arm = (pose->combo == 1 || pose->combo == 3) && side > 0.0f;
-            int cross_arm = pose->combo == 2 && side < 0.0f;
-            if (jab_arm && pose->combo == 3)
-                elbow = -side * (1.06f - 0.12f * strike); /* hook stays bent */
-            else if (jab_arm || cross_arm)
-                elbow = -side * (0.92f - 0.72f * strike); /* straight punches extend */
+            if (side > 0.0f)
+                /* Keep a visible bend through impact; the elbow never snaps straight. */
+                elbow = -side * (0.98f + 0.10f * chamber - 0.34f * drive +
+                                  0.05f * follow + 0.07f * recovery);
             else
-                elbow = -side * 0.88f;
+                elbow = -side * (0.88f - 0.05f * drive);
         } else elbow = -side * 0.88f;
         if (strstr(n, "EX") != NULL) elbow *= 0.45f;
         rotate_model_axis(bone, local, up_x, up_y, up_z, elbow);
@@ -375,20 +393,28 @@ static void pose_bone(const SkinBone *bone, float local[12], const SkinPose *pos
 
     if (name_is(n, "L_hand") || name_is(n, "R_hand")) {
         side = joint_side(n);
-        if (running) rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, -0.035f);
-        else if (attacking) rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z,
-                                               -side * 0.10f * strike);
-        else if (pose->action == SKIN_ACTION_GUARD)
-            rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, -side * 0.08f);
+        if (running) {
+            rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, -0.035f);
+        } else if (attacking && side > 0.0f) {
+            /* Small wrist alignment and snap, followed by a soft recoil. */
+            rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z,
+                              -side * (0.06f * chamber + 0.10f * drive +
+                                       0.05f * follow - 0.10f * recovery));
+            rotate_model_axis(bone, local, depth_x, depth_y, depth_z,
+                              side * (0.035f * drive - 0.025f * follow));
+        } else if (guarding) {
+            rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z,
+                              -side * 0.08f);
+        }
         return;
     }
 
     if (strstr(n, "_fin") != NULL) {
         float curl = 0.0f;
         if (pose->action == SKIN_ACTION_IDLE) curl = 0.08f;
-        else if (pose->action == SKIN_ACTION_GUARD || attacking) curl = 0.20f;
+        else if (guarding || attacking) curl = 0.20f;
         else if (pose->action == SKIN_ACTION_JUTSU) curl = 0.12f;
-        else if (pose->action == SKIN_ACTION_RUN) curl = 0.015f; /* open, trailing hands */
+        else if (pose->action == SKIN_ACTION_RUN) curl = 0.015f;
         if (n[0] == 'R') curl = -curl;
         rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, curl);
         return;
@@ -398,30 +424,25 @@ static void pose_bone(const SkinBone *bone, float local[12], const SkinPose *pos
         name_is(n, "L_hlegEX") || name_is(n, "R_hlegEX")) {
         side = joint_side(n);
         if (running) thigh = -side * 0.76f * gait;
-        else if (pose->action == SKIN_ACTION_JUMP) thigh = -side * (0.22f + 0.35f * air + 0.10f * rising - 0.08f * falling);
+        else if (pose->action == SKIN_ACTION_JUMP)
+            thigh = -side * (0.22f + 0.35f * air + 0.10f * rising - 0.08f * falling);
         else if (pose->action == SKIN_ACTION_DASH) thigh = -side * 0.30f;
         else if (pose->action == SKIN_ACTION_HIT) thigh = side * 0.12f;
-        else if (attacking && pose->combo == 4) {
-            /* Chamber and lift the right leg outward for the finishing side kick. */
-            thigh = side < 0.0f ? -0.10f * strike : 0.0f;
-            abduct = side < 0.0f ? 1.02f * strike : 0.0f;
-        } else if (attacking) thigh = -side * 0.04f * strike;
-        else thigh = -side * 0.035f;
-        if (strstr(n, "EX") != NULL) { thigh *= 0.55f; abduct *= 0.55f; }
+        else if (attacking) thigh = -side * (0.035f * drive - 0.025f * chamber);
+        else if (guarding) thigh = -side * (0.035f + 0.012f * sway);
+        if (strstr(n, "EX") != NULL) thigh *= 0.55f;
         rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, thigh);
-        if (abduct != 0.0f)
-            rotate_model_axis(bone, local, depth_x, depth_y, depth_z, abduct);
         return;
     }
 
     if (name_is(n, "L_lleg") || name_is(n, "R_lleg")) {
         side = joint_side(n);
         if (running) knee = 0.34f + 0.96f * fmaxf(0.0f, -side * gait);
-        else if (pose->action == SKIN_ACTION_JUMP) knee = 0.34f + 0.34f * air + 0.22f * falling;
-        else if (attacking && pose->combo == 4 && side < 0.0f)
-            knee = lerp(0.98f, 0.10f, strike);
+        else if (pose->action == SKIN_ACTION_JUMP)
+            knee = 0.34f + 0.34f * air + 0.22f * falling;
+        else if (attacking) knee = 0.12f + (side < 0.0f ? 0.065f : 0.025f) * drive;
         else if (pose->action == SKIN_ACTION_HIT) knee = 0.20f;
-        else knee = 0.12f;
+        else knee = 0.12f + (guarding ? 0.015f * fabsf(sway) : 0.0f);
         rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, knee);
         return;
     }
@@ -436,8 +457,8 @@ static void pose_bone(const SkinBone *bone, float local[12], const SkinPose *pos
             thigh = -side * (0.22f + 0.35f * air + 0.10f * rising - 0.08f * falling);
             knee = 0.34f + 0.34f * air + 0.22f * falling;
             foot = -0.30f * thigh - 0.55f * knee;
-        } else if (attacking && pose->combo == 4 && side < 0.0f) {
-            foot = -0.16f + 0.22f * strike;
+        } else if (attacking) {
+            foot = -0.045f * drive + 0.02f * recovery;
         } else foot = -0.06f;
         rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, foot);
         return;
@@ -454,10 +475,22 @@ static void pose_bone(const SkinBone *bone, float local[12], const SkinPose *pos
         return;
     }
 
-    /* Hair and tail strands use tiny secondary motion; face/attachment nodes stay bound. */
-    if (strstr(n, "hr") != NULL && running) {
-        float phase = pose->phase * 0.55f + (float)bone->parent * 0.07f;
-        rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z, sinf(phase) * 0.045f);
+    /* Hair and loose strands lag behind movement and recover after impacts. */
+    if (strstr(n, "hr") != NULL) {
+        if (running) {
+            float phase = pose->phase * 0.55f + (float)bone->parent * 0.07f;
+            rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z,
+                              sinf(phase) * 0.045f);
+        } else if (attacking) {
+            float phase = (float)bone->parent * 0.07f;
+            rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z,
+                              (0.018f * drive + 0.035f * follow -
+                               0.020f * recovery) * sinf(phase + 0.7f));
+        } else if (guarding) {
+            float phase = pose->phase * 0.08f + (float)bone->parent * 0.07f;
+            rotate_model_axis(bone, local, lateral_x, lateral_y, lateral_z,
+                              sinf(phase) * 0.012f);
+        }
     }
 }
 
