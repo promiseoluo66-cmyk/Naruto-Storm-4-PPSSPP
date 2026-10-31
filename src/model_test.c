@@ -1,8 +1,7 @@
 /*
  * model_test.c - PSP-era character model viewer.
  * Keeps the viewer as the boot screen; the unfinished game menu stays disabled.
- * The HUD borrows the layout of a classic PSP debug/model viewer while reporting
- * the REAL triangle count and texture dimensions of whichever asset loaded.
+ * Reports mesh and texture diagnostics without drawing fake on-screen PSP controls.
  */
 #include <pspkernel.h>
 #include <pspctrl.h>
@@ -22,73 +21,6 @@ extern const unsigned int test_character_nmtx_size;
 #define IMPORT_TEX_FILE   "assets/chr/test/naruto_import.nmtx"
 #define MODEL_FILE "assets/chr/test/test_character.nmdl"
 #define TEX_FILE   "assets/chr/test/test_texture.nmtx"
-
-static void outline_box(float x, float y, float w, float h,
-                        float thickness, unsigned color)
-{
-    gfx_rect(x, y, w, thickness, color);
-    gfx_rect(x, y + h - thickness, w, thickness, color);
-    gfx_rect(x, y, thickness, h, color);
-    gfx_rect(x + w - thickness, y, thickness, h, color);
-}
-
-/* Small scanline circle keeps the virtual PSP buttons crisp at 480x272. */
-static void circle_outline(float cx, float cy, int radius, unsigned color)
-{
-    int y;
-    for (y = -radius; y <= radius; y++) {
-        float q = (float)(radius * radius - y * y);
-        int x = (int)sqrtf(q);
-        gfx_rect(cx - x, cy + y, 2, 1, color);
-        gfx_rect(cx + x - 1, cy + y, 2, 1, color);
-    }
-}
-
-static void draw_dpad(void)
-{
-    unsigned edge = RGB(225, 230, 245);
-    unsigned face = RGBA(35, 42, 68, 220);
-    float x = 35.0f, y = 112.0f;
-
-    gfx_rect(x + 9, y, 12, 32, face);
-    gfx_rect(x, y + 10, 30, 12, face);
-    outline_box(x + 9, y, 12, 32, 1, edge);
-    outline_box(x, y + 10, 30, 12, 1, edge);
-    gfx_rect(x + 11, y + 12, 8, 8, RGB(105, 115, 145));
-    gfx_text(x + 12, y - 7, 1, edge, "U");
-    gfx_text(x - 7, y + 13, 1, edge, "L");
-    gfx_text(x + 27, y + 13, 1, edge, "R");
-    gfx_text(x + 12, y + 33, 1, edge, "D");
-}
-
-static void draw_analog(void)
-{
-    unsigned edge = RGB(210, 220, 240);
-    circle_outline(50, 204, 17, edge);
-    circle_outline(50, 204, 11, RGBA(145, 165, 205, 180));
-    gfx_rect(46, 200, 9, 9, RGBA(45, 55, 85, 235));
-    outline_box(46, 200, 9, 9, 1, edge);
-    gfx_text(28, 228, 1, edge, "ANALOG");
-}
-
-static void draw_face_buttons(void)
-{
-    unsigned text = RGB(245, 245, 250);
-    circle_outline(426, 106, 10, RGB(100, 205, 125));
-    gfx_text(423, 103, 1, text, "T");
-    circle_outline(447, 127, 10, RGB(230, 100, 105));
-    gfx_text(444, 124, 1, text, "O");
-    circle_outline(405, 127, 10, RGB(105, 165, 235));
-    gfx_text(402, 124, 1, text, "X");
-    outline_box(416, 139, 19, 19, 2, RGB(220, 130, 185));
-    gfx_text(422, 145, 1, text, "S");
-}
-
-static void draw_r_button(void)
-{
-    outline_box(450, 7, 21, 19, 1, RGB(245, 245, 250));
-    gfx_text(457, 12, 1, RGB(245, 245, 250), "R");
-}
 
 int model_test_run(void)
 {
@@ -174,18 +106,6 @@ int model_test_run(void)
             sprintf(line, "TEXTURE LOAD FAILED: CODE %d", tr);
             gfx_text(10, 43, 1, RGB(255, 115, 115), line);
         }
-        draw_r_button();
-
-        /* PSP-style virtual control overlay. */
-        draw_dpad();
-        draw_analog();
-        draw_face_buttons();
-
-        gfx_text(10, 237, 1, RGB(238, 240, 250), "LEFT/RIGHT: ROTATE");
-        gfx_text(10, 249, 1, RGB(238, 240, 250), "CROSS: RESET VIEW");
-        gfx_text(247, 237, 1, RGB(238, 240, 250), "SQUARE / SELECT / START:");
-        gfx_text(247, 249, 1, RGB(255, 220, 90), spin ? "AUTO ROTATE: ON" : "AUTO ROTATE: OFF");
-        gfx_text(160, 262, 1, RGB(245, 205, 100), "(GAME MENU DISABLED)");
         gfx_end();
     }
 
