@@ -27,12 +27,15 @@ b=a+'''
     }
 '''
 rep(a,b)
-rep('    gfx_init();\n    sceCtrlSetSamplingCycle(0);','''    gfx_init();
-    if (skinned_mesh_load(&naruto_skin,"assets/chr/test/naruto_skin.nskl","assets/chr/test/naruto_skin.nmtx")==0) {
-        if (skinned_instance_init(&naruto_skin_player,&naruto_skin)==0 &&
-            skinned_instance_init(&naruto_skin_dummy,&naruto_skin)==0) naruto_skin_ready=1;
-        else { skinned_instance_free(&naruto_skin_player); skinned_instance_free(&naruto_skin_dummy); skinned_mesh_free(&naruto_skin); }
-    }
-    sceCtrlSetSamplingCycle(0);')
+init = "\\n".join([
+    "    gfx_init();",
+    '    if (skinned_mesh_load(&naruto_skin,"assets/chr/test/naruto_skin.nskl","assets/chr/test/naruto_skin.nmtx")==0) {',
+    "        if (skinned_instance_init(&naruto_skin_player,&naruto_skin)==0 &&",
+    "            skinned_instance_init(&naruto_skin_dummy,&naruto_skin)==0) naruto_skin_ready=1;",
+    "        else { skinned_instance_free(&naruto_skin_player); skinned_instance_free(&naruto_skin_dummy); skinned_mesh_free(&naruto_skin); }",
+    "    }",
+    "    sceCtrlSetSamplingCycle(0);"
+])
+rep('    gfx_init();\\n    sceCtrlSetSamplingCycle(0);', init)
 p.write_text(s)
 print("SKELETAL MAIN INTEGRATION APPLIED")
