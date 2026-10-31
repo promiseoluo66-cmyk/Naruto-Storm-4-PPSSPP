@@ -390,11 +390,6 @@ static int mission_open(int i)
     return missions[i].req < 0 || ((sv.completed >> missions[i].req) & 1u);
 }
 
-static unsigned chars_unlocked(void)
-{
-    /* All entries in this prototype roster are available in Free Battle. */
-    return 0xFFFFFFFFu;
-}
 
 static int character_unlocked(int i)
 {
@@ -2093,9 +2088,13 @@ int main(void)
         }
         case GS_SELECT: {
             char buf[64];
-            const Def *sd = &roster[select_idx];
-            int unlocked = character_unlocked(select_idx);
-            int page_start = (select_idx / 24) * 24;
+            int draw_idx = select_idx;
+            const Def *sd;
+            int unlocked, page_start;
+            if (draw_idx < 0 || draw_idx >= NUM_CHARS) draw_idx = 0;
+            sd = &roster[draw_idx];
+            unlocked = character_unlocked(draw_idx);
+            page_start = (draw_idx / 24) * 24;
             int page_count = NUM_CHARS - page_start;
             if (page_count > 24) page_count = 24;
             gfx_begin(RGB(8, 12, 32));
@@ -2138,12 +2137,12 @@ int main(void)
             gfx_3d();
             gfx_camera(2.45f, 2.1f, 6.0f, 2.45f, 1.25f, 0.0f);
             gfx_box(2.45f, -0.05f, 0, 4.5f, 0.1f, 4.5f, RGB(54, 63, 99));
-            draw_preview(select_idx, menu_angle, 2.45f);
+            draw_preview(draw_idx, menu_angle, 2.45f);
             gfx_2d();
             gfx_text(220, 44, 1, RGB(175, 195, 230), "SELECTED SHINOBI");
             gfx_text(220, 190, 2, unlocked ? RGB(255, 230, 150) : RGB(255, 100, 100), sd->name);
             if (!unlocked) {
-                sprintf(buf, "LOCKED: %s", unlock_hint[select_idx]);
+                sprintf(buf, "LOCKED: %s", unlock_hint[draw_idx]);
                 gfx_text(220, 211, 1, RGB(255, 125, 125), buf);
             } else {
                 sprintf(buf, "HP %d", sd->hp);
