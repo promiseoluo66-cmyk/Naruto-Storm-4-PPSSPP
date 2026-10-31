@@ -6,10 +6,11 @@ typedef struct {
     float r_arm_lift, l_arm_lift;
     float r_leg_forward, l_leg_forward;
     float r_leg_lift, l_leg_lift;
+    float spine_lean;
 } StormPose;
 
 /* Evaluate a procedural pose from the current combat state. Timer units are frames. */
-void storm_anim_evaluate(StormPose *pose, int attacking, int combo,
+void storm_anim_evaluate(StormPose *pose, int attacking, int running, int combo,
                         int timer, int combo_direction, float gait_phase);
 
 #endif
