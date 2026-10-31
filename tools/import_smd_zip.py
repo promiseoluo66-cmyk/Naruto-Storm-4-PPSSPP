@@ -161,6 +161,11 @@ def resolve_material_textures(names, mtl_text, materials):
         candidates = []
         if material in mtl:
             candidates.append(mtl[material])
+        # SMD material names in this exporter are texture stems; MTL adds
+        # an underscore + source texture filename suffix.
+        for mtl_name, texture_ref in mtl.items():
+            if mtl_name.lower().startswith(material.lower()):
+                candidates.append(texture_ref)
         candidates.append(material)
         for ref in candidates:
             key = ref.replace("\\", "/").lower()
