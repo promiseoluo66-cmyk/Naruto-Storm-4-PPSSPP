@@ -27,7 +27,9 @@ if "skinned_draw(&naruto_skin" not in s:
         SkinnedInstance *instance = (f == &pl) ? &naruto_skin_player : &naruto_skin_dummy;
         memset(&pose, 0, sizeof(pose));
         pose.combo = f->combo; pose.timer = f->timer;
-        pose.combo_dir = f->combo_dir;\n        /* Keep a small idle-breath phase even when movement input is zero. */\n        pose.phase = f->phase + (f->moving ? 0.0f : (float)frame * 0.025f);
+        pose.combo_dir = f->combo_dir;
+        /* Keep a small idle-breath phase even when movement input is zero. */
+        pose.phase = f->phase + (f->moving ? 0.0f : (float)frame * 0.025f);
         pose.height = f->y; pose.vertical_velocity = f->vy;
         if (f->stun > 0) pose.action = SKIN_ACTION_HIT;
         else if (f->state == FS_ATTACK) pose.action = SKIN_ACTION_ATTACK;
