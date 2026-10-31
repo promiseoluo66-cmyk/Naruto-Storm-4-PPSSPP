@@ -13,13 +13,13 @@ LDFLAGS =
 EXTRA_TARGETS = EBOOT.PBP
 PSP_EBOOT_TITLE = Naruto Storm 4 PPSSPP
 
-# Generate the original test character (OBJ -> NMDL/NMTX -> embedded C data).
-# Needs python3 (Termux: pkg install python). See tools/README.md.
+# Generate fallback test data plus the weighted Naruto SMD rig and texture atlas.
+# Needs python3 + Pillow (the GitHub Actions build installs Pillow). See tools/README.md.
 ASSET_GEN := $(shell sh -c 'python3 tools/make_test_character.py assets/chr/test && python3 tools/obj2nmdl.py assets/chr/test/test_character.obj assets/chr/test/test_character.nmdl && python3 tools/embed_assets.py src/gen_assets.c test_character_nmdl=assets/chr/test/test_character.nmdl test_character_nmtx=assets/chr/test/test_texture.nmtx && python3 tools/import_smd_zip.py assets/chr/test/naruto-shippuden-naruto.zip assets/chr/test/naruto_rigged' 2>&1)
 $(if $(wildcard src/gen_assets.c),,$(error Asset generation failed - is python3 installed? $(ASSET_GEN)))
 
 PSPSDK = $(shell psp-config --pspsdk-path)
 include $(PSPSDK)/lib/build.mak
 
-# main.c keeps its own main(); rename it so launcher.c can run the model viewer first.
+# main.c keeps its own main(); rename it so launcher.c can enter the Free Battle game loop.
 src/main.o: CFLAGS += -Dmain=game_main
