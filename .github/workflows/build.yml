@@ -121,6 +121,31 @@ jobs:
                             "nodes_sections=", len(nodes), "skeleton_sections=", len(skeleton),
                             "bone_nodes=", len(node_lines), "triangle_records=", tri_count)
                       print("SMD FIRST BONE NODES:", node_lines[:16])
+                      print("SMD ALL BONES:", node_lines)
+                      if triangles_at is not None:
+                          import collections
+                          weight_hist = collections.Counter()
+                          max_weights = 0
+                          multi_examples = []
+                          i = triangles_at + 1
+                          while i < len(smd) and smd[i].strip() != "end":
+                              if not smd[i].strip():
+                                  i += 1
+                                  continue
+                              i += 1  # material
+                              for _ in range(3):
+                                  if i >= len(smd) or smd[i].strip() == "end": break
+                                  p = smd[i].split()
+                                  if len(p) >= 10:
+                                      count = int(p[9])
+                                      weight_hist[count] += 1
+                                      max_weights = max(max_weights, count)
+                                      if count > 1 and len(multi_examples) < 4: multi_examples.append(smd[i].strip())
+                                  i += 1
+                          print("SMD VERTEX INFLUENCE HISTOGRAM:", dict(weight_hist), "MAX=", max_weights)
+                          print("SMD MULTI-WEIGHT EXAMPLES:", multi_examples)
+                      print("SMD ALL FILES:", [(n, inner.getinfo(n).file_size) for n in names if n.lower().endswith(".smd")])
+
                       print("SMD SECTION MARKERS:", [(i + 1, x.strip()) for i, x in enumerate(smd) if x.strip() in ("nodes", "skeleton", "triangles", "end")][:16])
                       print("SMD HEADER SAMPLE:", smd[:12])
                       if triangles_at is not None:
