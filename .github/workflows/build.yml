@@ -173,6 +173,7 @@ jobs:
           fi
           python3 -m pip install --break-system-packages Pillow || python3 -m pip install --user Pillow
           python3 tools/import_obj_zip.py assets/chr/test/naruto-shippuden-naruto.zip assets/chr/test/naruto_import
+          python3 tools/import_smd_zip.py assets/chr/test/naruto-shippuden-naruto.zip assets/chr/test/naruto_rigged
       - name: Build
         run: |
           make clean
@@ -228,8 +229,7 @@ jobs:
           body: |
             Installable PSP folder: extract NarutoStorm4-PSP.zip and copy its PSP folder to the root of your PSP memory stick or PPSSPP memory stick directory.
             EBOOT.PBP is also provided separately.
-            This build starts directly in the character model viewer. The unfinished prototype game menu is disabled.
-            Character viewer build; test in PPSSPP. The imported OBJ mesh is static; skeletal animation is not included yet. The source ZIP is not included in the installer.
+            This build opens the Free Battle menu. Naruto uses an imported weighted SMD mesh with a procedural analog-driven walk cycle; other fighters remain prototype models. Story Mode is disabled in this build. Runtime testing in PPSSPP is still required. The source ZIP is not included in the installer.
           prerelease: true
           files: |
             EBOOT.PBP
