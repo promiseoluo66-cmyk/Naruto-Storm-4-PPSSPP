@@ -217,7 +217,7 @@ def main():
         tx, ty, tz, rx, ry, rz = frames[0][bid]
         local = mat_from_smd(tx, ty, tz, rx, ry, rz)
         parent = n["parent"]
-        global_m = local if parent == -1 else mul(out_bones[parent]["global"], local)
+        global_m = local if parent == -1 else mul(out_bones[parent]["global_bind_3x4_row_major"], local)
         inverse = inv_rigid(global_m)
         test = mul(global_m, inverse)
         residual = max(abs(test[r*4+c] - (1.0 if r == c else 0.0)) for r in range(3) for c in range(4))
