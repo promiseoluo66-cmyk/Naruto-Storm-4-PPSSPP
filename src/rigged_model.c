@@ -107,31 +107,57 @@ static void mat_rotate_parent_axis(float m[12], const float parent_bind[12],
             m[r*4 + col] = next[r*3 + col];
 }
 
+static float pose_smooth(float a, float b, float x)
+{
+    float t;
+    if (x <= a) return 0.0f;
+    if (x >= b) return 1.0f;
+    t = (x - a) / (b - a);
+    return t * t * (3.0f - 2.0f * t);
+}
+
 static void setup_walk_pose(RiggedModel *model, float phase, float blend,
                             int attack_combo, int attack_timer)
 {
-    float swing, left_knee, right_knee, punch = 0.0f;
+    float swing, left_knee, right_knee;
+    float attack = 0.0f, windup = 0.0f, follow = 0.0f, recovery = 0.0f;
+    float drive = 0.0f, counter = 0.0f, torso_twist = 0.0f;
+    int active_right = 1;
     unsigned int i;
 
     if (blend < 0.0f) blend = 0.0f;
     if (blend > 1.0f) blend = 1.0f;
     swing = sinf(phase) * 0.72f * blend;
-    if (attack_combo > 0 && attack_timer > 0 && attack_timer <= 9) {
-        if (attack_timer <= 2) punch = -0.18f * (float)attack_timer / 2.0f;
-        else if (attack_timer <= 5) punch = -0.18f + 0.46f * (float)(attack_timer - 2);
-        else punch = 1.20f * (1.0f - (float)(attack_timer - 5) / 4.0f);
-    }
     left_knee = fmaxf(0.0f, sinf(phase + 0.65f)) * 0.82f * blend;
     right_knee = fmaxf(0.0f, sinf(phase + 3.14159265f + 0.65f)) * 0.82f * blend;
+
+    /* Each tap is a four-part action: load, accelerate, follow through, recover.
+       The last hit has a longer recovery so the finisher reads as heavier. */
+    if (attack_combo > 0 && attack_timer > 0) {
+        float duration = (attack_combo >= 4) ? 18.0f : 12.0f;
+        float t = (float)attack_timer / duration;
+        float hit_start = (attack_combo >= 4) ? 0.14f : 0.17f;
+        float hit_end = (attack_combo >= 4) ? 0.48f : 0.52f;
+        active_right = ((attack_combo & 1) != 0);
+        windup = 1.0f - pose_smooth(0.02f, hit_start, t);
+        drive = pose_smooth(hit_start, hit_end, t);
+        follow = pose_smooth(hit_end, hit_end + 0.18f, t) *
+                 (1.0f - pose_smooth(hit_end + 0.18f, 0.82f, t));
+        recovery = pose_smooth(0.58f, 1.0f, t);
+        attack = (1.0f - recovery) * (windup * 0.45f + drive + follow * 0.32f);
+        counter = windup * 0.55f + follow * 0.35f;
+        /* Twist into the strike, then let the shoulders and hips unwind. */
+        torso_twist = (active_right ? -1.0f : 1.0f) *
+                      (windup * 0.20f + drive * 0.34f - recovery * 0.12f);
+    }
 
     for (i = 0; i < model->bone_count; i++)
         mat_copy(model->bones[i].current_local, model->bones[i].bind_local);
 
-    /* Naruto SMD hierarchy: hip 9; legs 10-12 and 18-20; arms 44-46/65-67.
-       The source is a T-pose, so first lower both arms into a relaxed guard.
-       All arm rotations below are around character-space axes, not arbitrary
-       bone-local axes; this keeps the hands from twisting away from the body. */
+    /* Imported Naruto skeleton: pelvis 9; legs 10-12 / 18-20;
+       shoulders/arms 44-46 / 65-67. */
     if (model->bone_count > 67) {
+        /* Walk cycle: opposite arm/leg swing and a subtle knee lift. */
         mat_rotate_local_y(model->bones[10].current_local, swing);
         mat_rotate_local_y(model->bones[18].current_local, -swing);
         mat_rotate_local_y(model->bones[11].current_local, left_knee);
@@ -139,43 +165,63 @@ static void setup_walk_pose(RiggedModel *model, float phase, float blend,
         mat_rotate_local_y(model->bones[12].current_local, -left_knee * 0.22f);
         mat_rotate_local_y(model->bones[20].current_local, -right_knee * 0.22f);
 
-        /* T-pose -> relaxed arms hanging beside the torso. */
+        /* Relax the source T-pose into a compact shinobi guard. */
         mat_rotate_parent_axis(model->bones[44].current_local,
                                model->bones[43].bind_global, 0.0f, 0.0f, 1.0f, -1.10f);
         mat_rotate_parent_axis(model->bones[65].current_local,
                                model->bones[64].bind_global, 0.0f, 0.0f, 1.0f, 1.10f);
 
-        if (attack_combo > 0 && punch != 0.0f) {
-            /* The active shoulder swings forward; frame 5 is the contact pose. */
-            if ((attack_combo & 1) != 0) {
-                mat_rotate_parent_axis(model->bones[65].current_local,
-                                       model->bones[64].bind_global, 1.0f, 0.0f, 0.0f, -punch);
-                mat_rotate_parent_axis(model->bones[66].current_local,
-                                       model->bones[65].bind_global, 1.0f, 0.0f, 0.0f, -punch * 0.10f);
-                mat_rotate_parent_axis(model->bones[67].current_local,
-                                       model->bones[66].bind_global, 1.0f, 0.0f, 0.0f, -punch * 0.05f);
-                mat_rotate_parent_axis(model->bones[44].current_local,
-                                       model->bones[43].bind_global, 1.0f, 0.0f, 0.0f, punch * 0.12f);
-            } else {
-                mat_rotate_parent_axis(model->bones[44].current_local,
-                                       model->bones[43].bind_global, 1.0f, 0.0f, 0.0f, -punch);
-                mat_rotate_parent_axis(model->bones[45].current_local,
-                                       model->bones[44].bind_global, 1.0f, 0.0f, 0.0f, -punch * 0.10f);
-                mat_rotate_parent_axis(model->bones[46].current_local,
-                                       model->bones[45].bind_global, 1.0f, 0.0f, 0.0f, -punch * 0.05f);
-                mat_rotate_parent_axis(model->bones[65].current_local,
-                                       model->bones[64].bind_global, 1.0f, 0.0f, 0.0f, punch * 0.12f);
-            }
+        if (attack_combo > 0 && attack_timer > 0) {
+            unsigned int lead = active_right ? 65 : 44;
+            unsigned int elbow = active_right ? 66 : 45;
+            unsigned int wrist = active_right ? 67 : 46;
+            unsigned int rear = active_right ? 44 : 65;
+            unsigned int rear_elbow = active_right ? 45 : 66;
+            const float *lead_parent = model->bones[lead - 1].bind_global;
+            const float *elbow_parent = model->bones[elbow - 1].bind_global;
+            const float *wrist_parent = model->bones[wrist - 1].bind_global;
+            const float *rear_parent = model->bones[rear - 1].bind_global;
+
+            /* Load the striking shoulder back, then drive through the target.
+               Elbow and wrist lag the shoulder slightly for a whip-like finish. */
+            mat_rotate_parent_axis(model->bones[lead].current_local, lead_parent,
+                                   1.0f, 0.0f, 0.0f,
+                                   (active_right ? -1.0f : 1.0f) *
+                                   (0.42f * windup + 1.18f * drive + 0.28f * follow));
+            mat_rotate_parent_axis(model->bones[elbow].current_local, elbow_parent,
+                                   0.0f, 0.0f, 1.0f,
+                                   -0.30f * windup + 0.48f * drive - 0.18f * recovery);
+            mat_rotate_parent_axis(model->bones[wrist].current_local, wrist_parent,
+                                   0.0f, 0.0f, 1.0f,
+                                   0.18f * drive + 0.24f * follow);
+
+            /* The non-striking arm guards the ribs and counterbalances the turn. */
+            mat_rotate_parent_axis(model->bones[rear].current_local, rear_parent,
+                                   1.0f, 0.0f, 0.0f,
+                                   (active_right ? 1.0f : -1.0f) *
+                                   (0.18f + 0.34f * counter));
+            mat_rotate_parent_axis(model->bones[rear_elbow].current_local,
+                                   model->bones[rear].bind_global,
+                                   0.0f, 0.0f, 1.0f, -0.42f * counter);
+
+            /* Pelvis counter-rotation gives the strike weight instead of a
+               shoulder-only swing. Keep the angle restrained for PSP skinning. */
+            mat_rotate_local_y(model->bones[9].current_local, torso_twist);
         } else {
-            /* Opposite arm swing while walking/running. */
+            /* Natural opposing arm swing during movement; tiny idle guard motion. */
+            float idle = 0.035f * sinf(phase * 0.5f);
             mat_rotate_parent_axis(model->bones[44].current_local,
-                                   model->bones[43].bind_global, 1.0f, 0.0f, 0.0f, swing * 0.42f);
+                                   model->bones[43].bind_global, 1.0f, 0.0f, 0.0f,
+                                   swing * 0.42f + idle);
             mat_rotate_parent_axis(model->bones[65].current_local,
-                                   model->bones[64].bind_global, 1.0f, 0.0f, 0.0f, -swing * 0.42f);
+                                   model->bones[64].bind_global, 1.0f, 0.0f, 0.0f,
+                                   -swing * 0.42f - idle);
             mat_rotate_parent_axis(model->bones[45].current_local,
-                                   model->bones[44].bind_global, 1.0f, 0.0f, 0.0f, swing * 0.10f);
+                                   model->bones[44].bind_global, 1.0f, 0.0f, 0.0f,
+                                   swing * 0.10f);
             mat_rotate_parent_axis(model->bones[66].current_local,
-                                   model->bones[65].bind_global, 1.0f, 0.0f, 0.0f, -swing * 0.10f);
+                                   model->bones[65].bind_global, 1.0f, 0.0f, 0.0f,
+                                   -swing * 0.10f);
         }
     }
 
