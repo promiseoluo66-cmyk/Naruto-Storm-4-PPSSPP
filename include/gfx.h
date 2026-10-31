@@ -15,6 +15,8 @@ void gfx_tapered_box(float x, float y, float z, float w, float h, float d, float
 void gfx_box(float x, float y, float z, float w, float h, float d, unsigned color);
 void gfx_ellipsoid(float x, float y, float z, float w, float h, float d, unsigned color);
 void gfx_box_rot(float x, float y, float z, float w, float h, float d, float yaw, unsigned color);
+/* Draw a low-cost 3D limb segment between two world-space points. */
+void gfx_segment(float ax, float ay, float az, float bx, float by, float bz, float thickness, unsigned color);
 
 /* 2D overlay (screen pixels, 480x272) */
 void gfx_2d(void);
