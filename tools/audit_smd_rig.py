@@ -203,7 +203,7 @@ def main():
             cur = nodes[cur]["parent"]
 
     runtime = (ROOT / "src/skinned.c").read_text(encoding="utf-8")
-    runtime_names = sorted(set(re.findall(r'name_is\\s*\\(\\s*n\\s*,\\s*"([^"]+)"\\s*\\)', runtime)))
+    runtime_names = sorted(set(re.findall(r'name_is\s*\(\s*n\s*,\s*"([^"]+)"\s*\)', runtime)))
     source_names = defaultdict(list)
     for bid in ids:
         source_names[nodes[bid]["name"]].append(bid)
