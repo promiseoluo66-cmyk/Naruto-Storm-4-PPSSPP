@@ -121,6 +121,31 @@ jobs:
                             "nodes_sections=", len(nodes), "skeleton_sections=", len(skeleton),
                             "bone_nodes=", len(node_lines), "triangle_records=", tri_count)
                       print("SMD FIRST BONE NODES:", node_lines[:16])
+                      print("SMD SECTION MARKERS:", [(i + 1, x.strip()) for i, x in enumerate(smd) if x.strip() in ("nodes", "skeleton", "triangles", "end")][:16])
+                      print("SMD HEADER SAMPLE:", smd[:12])
+                      if triangles_at is not None:
+                          sample = []
+                          i = triangles_at + 1
+                          while i < len(smd) and smd[i].strip() == "":
+                              i += 1
+                          if i < len(smd): sample.append("MATERIAL " + smd[i].strip())
+                          i += 1
+                          while i < len(smd) and len(sample) < 4:
+                              if smd[i].strip() == "end": break
+                              if smd[i].strip(): sample.append(smd[i].strip())
+                              i += 1
+                          print("SMD FIRST TRIANGLE AND VERTICES:", sample)
+                      skel_at = next((i for i, x in enumerate(smd) if x.strip() == "skeleton"), None)
+                      if skel_at is not None:
+                          frames = []
+                          i = skel_at + 1
+                          while i < len(smd) and smd[i].strip() != "end":
+                              if smd[i].strip().startswith("time "): frames.append(i)
+                              i += 1
+                          print("SMD ANIMATION FRAME COUNT:", len(frames))
+                          if frames:
+                              print("SMD FIRST FRAME SAMPLE:", [x.strip() for x in smd[frames[0]:frames[0]+10]])
+
           PY
 
       - name: Prepare imported OBJ and inspect texture inputs (temporary only)
