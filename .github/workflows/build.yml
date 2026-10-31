@@ -246,6 +246,7 @@ jobs:
           fi
           python3 -m pip install --break-system-packages Pillow || python3 -m pip install --user Pillow
           python3 tools/import_obj_zip.py assets/chr/test/naruto-shippuden-naruto.zip assets/chr/test/naruto_import
+          python3 tools/import_smd_zip.py assets/chr/test/naruto-shippuden-naruto.zip assets/chr/test/naruto_skin
       - name: Build
         run: |
           make clean
