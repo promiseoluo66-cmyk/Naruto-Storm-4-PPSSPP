@@ -119,11 +119,6 @@ static float smooth01(float t)
     return t * t * (3.0f - 2.0f * t);
 }
 
-static float lerp(float a, float b, float t)
-{
-    return a + (b - a) * t;
-}
-
 /* Smooth timing windows used by the anticipation, drive and recoil phases. */
 static float range_curve(float t, float begin, float end)
 {
