@@ -1,0 +1,71 @@
+name: Build Naruto Impact extraction toolchain
+
+on:
+  push:
+    branches:
+      - impact-extractor-setup
+    paths:
+      - ".github/workflows/build-impact-extractor.yml"
+      - "tools/impact-asset-extractor/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-unit:
+    name: Build UNIT / NNL on Ubuntu
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out this project
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build git
+
+      - name: Fetch pinned UNIT source
+        env:
+          UNIT_COMMIT: 2120cea7be66c7532298acac88247a4e1fac89a6
+        run: |
+          git clone https://github.com/Raw-man/UNIT.git "$RUNNER_TEMP/UNIT"
+          git -C "$RUNNER_TEMP/UNIT" checkout "$UNIT_COMMIT"
+          test "$(git -C "$RUNNER_TEMP/UNIT" rev-parse HEAD)" = "$UNIT_COMMIT"
+
+      - name: Configure and build UNIT (includes NNL)
+        run: |
+          cmake -S "$RUNNER_TEMP/UNIT" -B "$RUNNER_TEMP/UNIT/build" \
+            -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$RUNNER_TEMP/UNIT/build" --parallel 2
+
+      - name: Verify command-line tool and record supported commands
+        run: |
+          set -e
+          UNIT_BIN="$(find "$RUNNER_TEMP/UNIT/build" -type f -name unit -perm -111 -print -quit)"
+          test -n "$UNIT_BIN"
+          mkdir -p dist
+          cp "$UNIT_BIN" dist/unit-linux-x86_64
+          chmod +x dist/unit-linux-x86_64
+          dist/unit-linux-x86_64 --help > dist/unit-help.txt 2>&1
+          dist/unit-linux-x86_64 imp --help > dist/unit-import-help.txt 2>&1 || true
+          dist/unit-linux-x86_64 imp mdl --help > dist/unit-model-import-help.txt 2>&1 || true
+          {
+            echo "Tool: UNIT (Ultimate Ninja Impact Toolbox)"
+            echo "UNIT source commit: $UNIT_COMMIT"
+            echo "Build platform: Ubuntu 24.04 x86_64"
+            echo "Built from source; NNL is included as a CMake dependency."
+            echo "This is a Linux runner binary, not an Android APK."
+            echo "No game ISO or copyrighted game assets are included."
+          } > dist/BUILD-INFO.txt
+        env:
+          UNIT_COMMIT: 2120cea7be66c7532298acac88247a4e1fac89a6
+
+      - name: Upload tool and CLI help as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: impact-extractor-toolchain-linux-x86_64
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
