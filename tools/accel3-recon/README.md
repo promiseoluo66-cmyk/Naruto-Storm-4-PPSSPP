@@ -1,61 +1,52 @@
-# Narutimate Accel 3 (Japan) — format reconnaissance
+# Naruto PSP Unified Asset Toolkit
 
-Target: Naruto Shippuden: Narutimate Accel 3, Japan/Korea PSP release,
-game ID ULJS-00236. The regional English release is Ultimate Ninja Heroes 3,
-game ID ULUS-10518. This branch prioritizes the Japanese release.
+One front-end routes between two separate game-specific workflows:
 
-## What the research established
+- Narutimate Accel 3 / Ultimate Ninja Heroes 3 (ULJS-00236 / ULUS-10518).
+- Ultimate Ninja Impact (UNIT/NNL toolchain).
 
-- The Japanese release is identified as ULJS-00236; its disc dump is reported as
-  a 644,841,472-byte ISO with CRC32 674025ae.
-- Existing public PSP modding material found for this exact title mainly documents
-  PPSSPP texture replacement. That is not a 3D model or animation extractor.
-- UNIT/NNL target Ultimate Ninja Impact and Legends: Akatsuki Rising, not Accel 3.
-- CyberConnect2 XFBIN tools found during research target later Storm/XFBIN games;
-  no public evidence found that they parse Accel 3's PSP asset containers.
-- Therefore, we must not label UNIT, NNL, or XFBIN importers as compatible with Accel 3.
+## Why adapters?
 
-## Stage started in this branch
+The games do not have a confirmed shared archive format. One launcher can detect
+the game and route to the correct adapter, but the parsers must remain separate.
+This avoids falsely treating Impact's format as compatible with Accel 3.
 
-accel3_probe.py is a read-only Python 3 ISO9660 inventory tool. It:
-1. Lists paths, file sizes, and ISO sector offsets.
-2. Inspects the first bytes of files for known container signatures.
-3. Checks PSP_GAME/PARAM.SFO for the Japanese/US game IDs.
-4. Creates a JSON report identifying unknown or likely game-specific files.
+## Current verified scope
 
-It does not decrypt or unpack the game's proprietary containers, nor export
-models, skeletons, animation clips, or moveset/action tables. The report is the
-evidence needed to choose and implement the next parser, rather than guessing.
+- Shared CLI front-end.
+- PARAM.SFO-based title detection where metadata is present.
+- Accel 3 adapter runs read-only ISO inventory.
+- Impact adapter checks for UNIT and captures its help text.
+- Common JSON reporting and automated tests.
 
-## Run locally on Android (Termux) or desktop
+Not yet implemented: proprietary archive decryption/unpacking, model/skeleton
+export, animation clip export, or moveset/action-table export. The Impact adapter
+does not assume an undocumented UNIT export command. Accel 3 still needs its
+actual archive format identified from a report made from a real ISO.
 
-Keep the ISO on your device. Do not upload the ISO to this public repository.
-Install Python 3 in Termux if it is not already available, then:
+## Usage
 
-    termux-setup-storage
-    pkg install python
-    python /path/to/accel3_probe.py "/sdcard/Download/your-Accel-3.iso" --out "/sdcard/Download/accel3-report.json"
+    python naruto_asset_tool.py /path/to/game.iso --game auto --out report.json
 
-On desktop:
+Override detection only if you have verified the game:
 
-    python3 accel3_probe.py "/path/to/your-Accel-3.iso" --out accel3-report.json
+    python naruto_asset_tool.py /path/to/accel3.iso --game accel3
+    python naruto_asset_tool.py /path/to/impact.iso --game impact --unit /path/to/unit
 
-Only the small JSON report is needed for the next reverse-engineering step. Review it
-before sharing; it contains filenames and offsets but should not contain game assets.
+Keep ISO files and extracted copyrighted game assets local. Do not commit them.
+Only share a reviewed metadata report, not the ISO.
 
-## Build/test
+## Files
 
-The GitHub Actions workflow build-accel3-probe.yml runs the standard-library tests
-and publishes a source ZIP artifact. The script itself is portable Python and needs
-no native compilation or third-party packages.
+- naruto_asset_tool.py: common launcher and adapter routing.
+- accel3_probe.py: Accel 3 ISO inventory backend.
+- test files: automated tests.
+- Impact UNIT build setup remains on its existing isolated branch.
 
-## References checked
+## Next stages
 
-- Game ID / dump metadata: https://renascene.com/psp/info/umd/2058
-- Additional title identity and release record: https://titlescreen.org/release/r4z5fk43/naruto-shippuden-narutimate-accel-3
-- PPSSPP texture replacement example for ULJS00236:
-  https://vtmods.blogspot.com/2017/07/mod-texture-naruto-shippuden-ultimate.html
-- UNIT: https://github.com/Raw-man/UNIT
-- NNL: https://github.com/Raw-man/NNL
-- Storm XFBIN 3ds Max importer (not confirmed for Accel 3):
-  https://github.com/DennisHerrm/XFBIN-Import-3ds-max
+1. Validate detection against real PARAM.SFO files from both games.
+2. Inspect UNIT's actual commands and validate the Impact extraction path.
+3. Reverse-engineer Accel 3's proprietary archive/container format.
+4. Implement each game's parser behind a common export schema.
+5. Validate exported meshes, skeletons, animations and action metadata.
