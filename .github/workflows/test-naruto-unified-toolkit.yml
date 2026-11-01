@@ -1,0 +1,35 @@
+name: Test Naruto unified asset toolkit
+
+on:
+  push:
+    branches: [naruto-unified-asset-toolkit]
+    paths:
+      - "tools/accel3-recon/**"
+      - ".github/workflows/test-naruto-unified-toolkit.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run tests
+        working-directory: tools/accel3-recon
+        run: python -m unittest -v
+      - name: Syntax check
+        working-directory: tools/accel3-recon
+        run: python -m py_compile naruto_asset_tool.py accel3_probe.py
+      - name: Package source
+        run: |
+          mkdir -p dist
+          cd tools/accel3-recon
+          zip -r ../../dist/naruto-unified-asset-toolkit.zip naruto_asset_tool.py accel3_probe.py test_naruto_asset_tool.py test_accel3_probe.py README.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: naruto-unified-asset-toolkit
+          path: dist/naruto-unified-asset-toolkit.zip
+          retention-days: 14
