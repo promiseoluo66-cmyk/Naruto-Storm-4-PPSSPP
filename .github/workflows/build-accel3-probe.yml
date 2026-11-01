@@ -1,0 +1,37 @@
+name: Build Accel 3 reconnaissance tool
+
+on:
+  push:
+    branches: [accel3-extractor-recon]
+    paths:
+      - "tools/accel3-recon/**"
+      - ".github/workflows/build-accel3-probe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-package:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run tests
+        working-directory: tools/accel3-recon
+        run: python -m unittest -v
+      - name: Package source tool
+        run: |
+          mkdir -p dist
+          cd tools/accel3-recon
+          zip -r ../../dist/accel3-recon-toolkit.zip accel3_probe.py test_accel3_probe.py README.md
+      - name: Upload toolkit
+        uses: actions/upload-artifact@v4
+        with:
+          name: accel3-recon-toolkit
+          path: dist/accel3-recon-toolkit.zip
+          retention-days: 14
