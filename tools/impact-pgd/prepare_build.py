@@ -31,7 +31,7 @@ REPLACEMENT = """\t// Validate encrypted descriptor values before calculating si
 \t}
 \tpgd->align_size = (u32)aligned_size;
 \tpgd->table_offset = pgd->data_offset + pgd->align_size;
-\tpgd->block_nr = (u32)block_count"""
+\tpgd->block_nr = (u32)block_count;"""
 
 
 def main() -> int:
