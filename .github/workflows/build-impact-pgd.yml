@@ -27,6 +27,9 @@ jobs:
           sparse-checkout: |
             ext/libkirk
 
+      - name: Python syntax check
+        run: python3 -m py_compile tools/impact-pgd/prepare_build.py tools/impact-pgd/decrypt_impact_iso.py tools/impact-pgd/test_prepare_build.py
+
       - name: Test build preparation
         run: python3 -m unittest discover -s tools/impact-pgd -p 'test_*.py' -v
 
