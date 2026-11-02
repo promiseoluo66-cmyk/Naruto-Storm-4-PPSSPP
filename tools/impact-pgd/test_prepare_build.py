@@ -43,6 +43,7 @@ class PrepareBuildTests(unittest.TestCase):
             self.assertIn("#include <stdint.h>", patched)
             self.assertIn("const uint64_t block_span", patched)
             self.assertIn("block_span > UINT32_MAX", patched)
+            self.assertIn("pgd->block_nr = (u32)block_count;", patched)
             self.assertNotIn("pgd->align_size = (pgd->data_size+15)&~15;", patched)
             self.assertEqual(amctrl.read_text(), "#include <string.h>\n" + old)
 
