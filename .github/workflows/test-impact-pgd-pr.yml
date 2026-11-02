@@ -32,7 +32,10 @@ jobs:
           python3 -m py_compile \
             tools/impact-pgd/prepare_build.py \
             tools/impact-pgd/decrypt_impact_iso.py \
-            tools/impact-pgd/test_prepare_build.py
+            tools/impact-pgd/test_prepare_build.py \
+            tools/impact-pgd/dig_probe.py \
+            tools/impact-pgd/probe_all_impact_pgds.py \
+            tools/impact-pgd/test_dig_probe.py
 
       - name: Test safe build preparation
         run: python3 -m unittest discover -s tools/impact-pgd -p 'test_*.py' -v
