@@ -27,6 +27,9 @@ jobs:
           sparse-checkout: |
             ext/libkirk
 
+      - name: Test build preparation
+        run: python3 -m unittest discover -s tools/impact-pgd -p 'test_*.py' -v
+
       - name: Prepare hardened libkirk copy
         run: |
           python3 tools/impact-pgd/prepare_build.py \
