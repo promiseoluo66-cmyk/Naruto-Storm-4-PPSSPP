@@ -35,17 +35,27 @@ The script is intended for the user's Android Termux environment:
 It builds a native executable for the device. It does not need the ISO in
 GitHub or a cloud build runner.
 
-## Decrypt one of the Impact PGD files
+## Decrypt one of the Impact PGD entries directly from the ISO
 
-Use the already extracted local file, for example:
+The four candidate files are inside the ISO, so you do not need to extract
+them manually. First list the candidates:
 
-    tools/impact-pgd/build/impact_pgd_decryptor \
-      "$HOME/storage/downloads/0005.BIN" \
-      "$HOME/storage/downloads/0005.decrypted.bin"
+    python3 tools/impact-pgd/decrypt_impact_iso.py \
+      "$HOME/storage/downloads/2736 - Naruto Shippuden - Ultimate Ninja Impact (USA) (En,Fr,Es).iso" \
+      --list-candidates
 
-The actual path should point to the 0005.BIN, 0007.BIN, 0008.BIN, or
-0012.BIN file extracted from the user's own Impact ISO. Do not upload the ISO
-or decrypted game assets to GitHub.
+Then decrypt one candidate. Start with 0012.BIN because it is the largest
+candidate and is the best first test of the main archive path:
+
+    python3 tools/impact-pgd/decrypt_impact_iso.py \
+      "$HOME/storage/downloads/2736 - Naruto Shippuden - Ultimate Ninja Impact (USA) (En,Fr,Es).iso" \
+      --entry PSP_GAME/INSDIR/0012.BIN \
+      --output "$HOME/storage/downloads/impact-0012-decrypted.bin"
+
+The wrapper copies only that one ISO member into temporary storage, invokes
+the C++ PGD decryptor, and removes the temporary copy when finished. The ISO
+and decrypted output remain on the phone; neither is uploaded to GitHub.
+Use --force only when you intentionally want to replace an existing output.
 
 The output is written only after all blocks decrypt successfully. The command
 prints a JSON summary including the PGD descriptor values, first plaintext
