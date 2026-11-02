@@ -75,6 +75,33 @@ tool refuses to overwrite it unless --force is supplied.
 - "CFC.DIG signature candidate": a promising header match, but NNL/Racjin
   format detection is still required.
 
+
+## Validate DIG structure and scan all four candidates
+
+NNL identifies a DIG archive by validating its record table and all referenced
+payload ranges, not by looking for a literal CFC.DIG string. The local
+dig_probe.py script ports those structural checks:
+
+    python3 tools/impact-pgd/dig_probe.py /path/to/decrypted.bin
+
+To attempt all four known PGD entries in one pass:
+
+    python3 tools/impact-pgd/probe_all_impact_pgds.py \
+      "$HOME/storage/downloads/2736 - Naruto Shippuden - Ultimate Ninja Impact (USA) (En,Fr,Es).iso"
+
+The batch scanner:
+- processes the four candidates sequentially to limit peak storage;
+- authenticates and decrypts each PGD with the compiled decryptor;
+- validates the plaintext against the NNL DIG record-table rules;
+- preserves outputs that pass DIG validation in the results folder;
+- deletes decrypted outputs that do not pass validation by default;
+- writes impact-pgd-scan-report.json with a result for each candidate.
+
+Use --keep-unknown only when you intentionally want to retain decrypted
+non-DIG files for manual inspection. Use --force to replace existing results.
+A structurally valid DIG file is not yet a character export; it is the input
+to the next archive-entry and asset-enumeration stage.
+
 ## Test status and limitations
 
 --self-test and CTest check the CLI's local validation logic. They do not
