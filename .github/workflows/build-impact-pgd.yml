@@ -1,0 +1,57 @@
+name: Build Impact PGD decryptor
+
+on:
+  push:
+    branches: [impact-pgd-decryptor]
+    paths:
+      - "tools/impact-pgd/**"
+      - ".github/workflows/build-impact-pgd.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned PPSSPP libkirk source
+        uses: actions/checkout@v4
+        with:
+          repository: hrydgard/ppsspp
+          ref: fc9ca4d1f78a5d60ae03f3311c6b8ab49273f6a8
+          path: ppsspp-src
+          sparse-checkout: |
+            ext/libkirk
+
+      - name: Prepare hardened libkirk copy
+        run: |
+          python3 tools/impact-pgd/prepare_build.py \
+            --ppsspp-src ppsspp-src \
+            --output-dir "$RUNNER_TEMP/ppsspp-libkirk"
+
+      - name: Configure and build
+        run: |
+          cmake -S tools/impact-pgd -B build \
+            -DPPSSPP_LIBKIRK_DIR="$RUNNER_TEMP/ppsspp-libkirk" \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel 2
+
+      - name: Run code-level tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Package Linux x86_64 executable
+        run: |
+          mkdir -p dist
+          cp build/impact_pgd_decryptor dist/
+          cp tools/impact-pgd/README.md dist/
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: impact-pgd-decryptor-linux-x86_64
+          path: dist/
+          retention-days: 14
