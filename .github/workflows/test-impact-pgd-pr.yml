@@ -1,0 +1,54 @@
+name: Validate Impact PGD decryptor pull requests
+
+on:
+  pull_request:
+    branches: [naruto-unified-asset-toolkit]
+    paths:
+      - "tools/impact-pgd/**"
+      - ".github/workflows/build-impact-pgd.yml"
+      - ".github/workflows/test-impact-pgd-pr.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout pull request merge tree
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned PPSSPP libkirk source
+        uses: actions/checkout@v4
+        with:
+          repository: hrydgard/ppsspp
+          ref: fc9ca4d1f78a5d60ae03f3311c6b8ab49273f6a8
+          path: ppsspp-src
+          sparse-checkout: |
+            ext/libkirk
+
+      - name: Check Python scripts
+        run: |
+          python3 -m py_compile \
+            tools/impact-pgd/prepare_build.py \
+            tools/impact-pgd/decrypt_impact_iso.py \
+            tools/impact-pgd/test_prepare_build.py
+
+      - name: Test safe build preparation
+        run: python3 -m unittest discover -s tools/impact-pgd -p 'test_*.py' -v
+
+      - name: Prepare hardened PPSSPP libkirk
+        run: |
+          python3 tools/impact-pgd/prepare_build.py \
+            --ppsspp-src ppsspp-src \
+            --output-dir "$RUNNER_TEMP/ppsspp-libkirk"
+
+      - name: Configure and compile decryptor
+        run: |
+          cmake -S tools/impact-pgd -B build \
+            -DPPSSPP_LIBKIRK_DIR="$RUNNER_TEMP/ppsspp-libkirk" \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel 2
+
+      - name: Run decryptor self-test
+        run: ctest --test-dir build --output-on-failure
