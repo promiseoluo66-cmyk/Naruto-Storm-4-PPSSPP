@@ -99,9 +99,9 @@ int self_test() {
         return 1;
     }
 
-    const std::vector<u8> cfc = {'C','F','C','.','D','I','G'};
-    if (format_hint(cfc).find("CFC.DIG") == std::string::npos) {
-        std::cerr << "self-test failed: CFC.DIG signature hint mismatch\n";
+    const std::vector<u8> cfc_label = {'C','F','C','.','D','I','G'};
+    if (format_hint(cfc_label) != "unknown; inspect the decrypted header with NNL/Racjin") {
+        std::cerr << "self-test failed: DIG must not be treated as a fixed-magic format\n";
         return 1;
     }
     std::cout << "self-test: PASS (magic, block-size bounds, signature hint)\n";
