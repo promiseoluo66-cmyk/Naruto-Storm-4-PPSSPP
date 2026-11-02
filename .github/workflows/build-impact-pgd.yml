@@ -6,6 +6,11 @@ on:
     paths:
       - "tools/impact-pgd/**"
       - ".github/workflows/build-impact-pgd.yml"
+  pull_request:
+    branches: [naruto-unified-asset-toolkit]
+    paths:
+      - "tools/impact-pgd/**"
+      - ".github/workflows/build-impact-pgd.yml"
   workflow_dispatch:
 
 permissions:
