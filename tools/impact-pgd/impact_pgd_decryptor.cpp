@@ -40,7 +40,6 @@ std::string format_hint(const std::vector<u8> &preview) {
         return preview.size() >= length &&
                std::equal(value, value + length, preview.begin());
     };
-    if (starts("CFC.DIG", 7)) return "CFC.DIG signature candidate";
     if (starts("CDDATA", 6)) return "CDDATA signature candidate";
     if (starts("CPK ", 4)) return "CRIWARE CPK";
     if (starts("RIFF", 4)) return "RIFF";
