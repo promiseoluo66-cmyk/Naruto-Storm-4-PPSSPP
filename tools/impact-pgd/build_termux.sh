@@ -3,8 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PPSSPP_REV="fc9ca4d1f78a5d60ae03f3311c6b8ab49273f6a8"
-CACHE_DIR="\${PPSSPP_SRC:-$HOME/.cache/ppsspp-libkirk}"
-BUILD_DIR="\${BUILD_DIR:-$SCRIPT_DIR/build}"
+CACHE_DIR="${PPSSPP_SRC:-$HOME/.cache/ppsspp-libkirk}"
+BUILD_DIR="${BUILD_DIR:-$SCRIPT_DIR/build}"
 PREPARED_DIR="$BUILD_DIR/ppsspp-libkirk"
 
 for command_name in git cmake clang python3; do
